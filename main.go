@@ -13,17 +13,17 @@ import (
 	"sync"
 	"time"
 
-	pb "github.com/GalitskyKK/nekkus-core/internal/protocol"
+	pb "github.com/GalitskyKK/nekkus-core/pkg/protocol"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
 
 type widgetConfig struct {
-	Type            string `json:"type"`
-	Component       string `json:"component"`
-	Height          int    `json:"height"`
-	UpdateInterval  string `json:"update_interval"`
-	SupportsResize  bool   `json:"supports_resize"`
+	Type           string `json:"type"`
+	Component      string `json:"component"`
+	Height         int    `json:"height"`
+	UpdateInterval string `json:"update_interval"`
+	SupportsResize bool   `json:"supports_resize"`
 }
 
 type moduleManifest struct {

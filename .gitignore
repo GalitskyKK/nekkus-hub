@@ -1,2 +1,7 @@
 build
 .task
+bin
+dist
+data
+*.syso
+wails_windows_*.syso

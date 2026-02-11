@@ -176,7 +176,7 @@ type BackendOptions struct {
 }
 
 func RunHubBackend(options BackendOptions) (*grpc.Server, error) {
-	modulesDir, err := filepath.Abs(options.ModulesDir)
+	modulesDir, err := resolveModulesDir(options.ModulesDir)
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve modules dir: %w", err)
 	}
@@ -295,6 +295,28 @@ func RunHubBackend(options BackendOptions) (*grpc.Server, error) {
 	}()
 
 	return grpcServer, nil
+}
+
+func resolveModulesDir(input string) (string, error) {
+	if input == "" {
+		return "", fmt.Errorf("modules dir is empty")
+	}
+	abs, err := filepath.Abs(input)
+	if err != nil {
+		return "", err
+	}
+	if dirExists(abs) {
+		return abs, nil
+	}
+	exe, err := os.Executable()
+	if err != nil {
+		return abs, nil
+	}
+	localModules := filepath.Join(filepath.Dir(exe), "modules")
+	if dirExists(localModules) {
+		return localModules, nil
+	}
+	return abs, nil
 }
 
 func runtimeOS() string {
@@ -577,6 +599,11 @@ func buildModuleEnv(hubAddr string, showUI bool, autoConnect bool) []string {
 		env = append(env, "NEKKUS_AUTO_CONNECT=1")
 	} else {
 		env = append(env, "NEKKUS_AUTO_CONNECT=0")
+	}
+	if showUI {
+		env = append(env, "NEKKUS_SINGBOX_LOG=file")
+	} else {
+		env = append(env, "NEKKUS_SINGBOX_LOG=none")
 	}
 	env = append(env, "WAILS_ENV=production")
 	env = append(env, "WAILS_DEV_SERVER_URL=")

@@ -36,3 +36,18 @@ export const stopModule = (id: string) =>
   request<{ ok: boolean }>(`/api/modules/${encodeURIComponent(id)}/stop`, {
     method: 'POST',
   })
+
+/** Add module from folder: FormData keys = relative paths (e.g. manifest.json, nekkus-vpn.exe). */
+export async function addModule(formData: FormData): Promise<{ ok: string; module_id: string }> {
+  const apiBase = import.meta.env.VITE_API_BASE ?? 'http://127.0.0.1:8080'
+  const response = await fetch(`${apiBase}/api/modules/add`, {
+    method: 'POST',
+    body: formData,
+    headers: {},
+  })
+  if (!response.ok) {
+    const text = await response.text()
+    throw new Error(text || `Add module failed: ${response.status}`)
+  }
+  return response.json() as Promise<{ ok: string; module_id: string }>
+}

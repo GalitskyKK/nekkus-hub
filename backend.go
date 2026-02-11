@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"net/http"
@@ -180,6 +181,9 @@ func RunHubBackend(options BackendOptions) (*grpc.Server, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve modules dir: %w", err)
 	}
+	if err := os.MkdirAll(modulesDir, 0755); err != nil {
+		return nil, fmt.Errorf("create modules dir: %w", err)
+	}
 
 	registry := newRegistry()
 	if err := registry.scanModules(modulesDir); err != nil {
@@ -237,6 +241,24 @@ func RunHubBackend(options BackendOptions) (*grpc.Server, error) {
 			return
 		}
 		writeJSON(w, http.StatusOK, registry.listModules())
+	})
+	mux.HandleFunc("/api/modules/add", func(w http.ResponseWriter, r *http.Request) {
+		if applyCORS(w, r) {
+			return
+		}
+		if r.Method != http.MethodPost {
+			writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "method not allowed"})
+			return
+		}
+		moduleID, err := addModuleFromMultipart(r, modulesDir)
+		if err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+		if err := registry.scanModules(modulesDir); err != nil {
+			log.Printf("rescan after add: %v", err)
+		}
+		writeJSON(w, http.StatusOK, map[string]string{"ok": "true", "module_id": moduleID})
 	})
 	mux.HandleFunc("/api/modules/", func(w http.ResponseWriter, r *http.Request) {
 		if applyCORS(w, r) {
@@ -297,9 +319,101 @@ func RunHubBackend(options BackendOptions) (*grpc.Server, error) {
 	return grpcServer, nil
 }
 
+const multipartMaxBytes = 32 << 20
+
+// addModuleFromMultipart expects multipart form: each part key = relative path inside module (e.g. "manifest.json", "nekkus-vpn.exe").
+// manifest.json must be present; its "id" is used as the module folder name under modulesDir.
+func addModuleFromMultipart(r *http.Request, modulesDir string) (string, error) {
+	if err := r.ParseMultipartForm(multipartMaxBytes); err != nil {
+		return "", fmt.Errorf("parse form: %w", err)
+	}
+	defer r.MultipartForm.RemoveAll()
+
+	files := r.MultipartForm.File
+	if files["manifest.json"] == nil || len(files["manifest.json"]) == 0 {
+		return "", fmt.Errorf("manifest.json is required")
+	}
+	manifestFile, err := files["manifest.json"][0].Open()
+	if err != nil {
+		return "", fmt.Errorf("open manifest: %w", err)
+	}
+	defer manifestFile.Close()
+	manifestData, err := io.ReadAll(manifestFile)
+	if err != nil {
+		return "", fmt.Errorf("read manifest: %w", err)
+	}
+	var manifest struct {
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal(manifestData, &manifest); err != nil {
+		return "", fmt.Errorf("invalid manifest.json: %w", err)
+	}
+	if manifest.ID == "" {
+		return "", fmt.Errorf("manifest.json must contain \"id\"")
+	}
+	moduleDir := filepath.Join(modulesDir, manifest.ID)
+	if err := os.MkdirAll(moduleDir, 0755); err != nil {
+		return "", fmt.Errorf("create module dir: %w", err)
+	}
+
+	for key, headers := range files {
+		if key == "" {
+			continue
+		}
+		rel := filepath.FromSlash(key)
+		if filepath.IsAbs(rel) || strings.Contains(rel, "..") {
+			continue
+		}
+		clean := filepath.Clean(rel)
+		if strings.HasPrefix(clean, "..") {
+			continue
+		}
+		target := filepath.Join(moduleDir, clean)
+		relPath, relErr := filepath.Rel(moduleDir, target)
+		if relErr != nil || strings.Contains(relPath, "..") {
+			continue
+		}
+		for _, h := range headers {
+			f, openErr := h.Open()
+			if openErr != nil {
+				return "", fmt.Errorf("open %s: %w", key, openErr)
+			}
+			if err := os.MkdirAll(filepath.Dir(target), 0755); err != nil {
+				_ = f.Close()
+				return "", fmt.Errorf("mkdir for %s: %w", key, err)
+			}
+			dst, createErr := os.Create(target)
+			if createErr != nil {
+				_ = f.Close()
+				return "", fmt.Errorf("create %s: %w", key, createErr)
+			}
+			_, copyErr := io.Copy(dst, f)
+			_ = f.Close()
+			_ = dst.Close()
+			if copyErr != nil {
+				return "", fmt.Errorf("write %s: %w", key, copyErr)
+			}
+			break
+		}
+	}
+	return manifest.ID, nil
+}
+
 func resolveModulesDir(input string) (string, error) {
+	exe, exeErr := os.Executable()
+	if exeErr != nil {
+		exe = ""
+	}
+	exeDirModules := ""
+	if exe != "" {
+		exeDirModules = filepath.Join(filepath.Dir(exe), "modules")
+	}
+
 	if input == "" {
-		return "", fmt.Errorf("modules dir is empty")
+		if exeDirModules == "" {
+			return "", fmt.Errorf("modules dir is empty and executable path unknown")
+		}
+		return exeDirModules, nil
 	}
 	abs, err := filepath.Abs(input)
 	if err != nil {
@@ -308,13 +422,8 @@ func resolveModulesDir(input string) (string, error) {
 	if dirExists(abs) {
 		return abs, nil
 	}
-	exe, err := os.Executable()
-	if err != nil {
-		return abs, nil
-	}
-	localModules := filepath.Join(filepath.Dir(exe), "modules")
-	if dirExists(localModules) {
-		return localModules, nil
+	if exeDirModules != "" && dirExists(exeDirModules) {
+		return exeDirModules, nil
 	}
 	return abs, nil
 }

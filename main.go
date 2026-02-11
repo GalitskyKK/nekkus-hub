@@ -21,7 +21,7 @@ var assets embed.FS
 func main() {
 	grpcAddr := flag.String("grpc-addr", getEnv("NEKKUS_HUB_GRPC_ADDR", "127.0.0.1:50051"), "gRPC address")
 	httpAddr := flag.String("http-addr", getEnv("NEKKUS_HUB_HTTP_ADDR", "127.0.0.1:8080"), "HTTP address")
-	modulesDir := flag.String("modules-dir", getEnv("NEKKUS_MODULES_DIR", "../modules"), "Modules directory")
+	modulesDir := flag.String("modules-dir", getEnv("NEKKUS_MODULES_DIR", ""), "Modules directory (empty = next to hub executable)")
 	flag.Parse()
 
 	if _, err := RunHubBackend(BackendOptions{

@@ -1,12 +1,13 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import './app.css'
-import { fetchSummary, openModuleUI, rescanModules, startModule, stopModule } from './api'
+import { addModule, fetchSummary, openModuleUI, rescanModules, startModule, stopModule } from './api'
 import type { ModuleSummary } from './types'
 
 function App() {
   const [modules, setModules] = useState<ModuleSummary[]>([])
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [isBusy, setIsBusy] = useState(false)
+  const addModuleInputRef = useRef<HTMLInputElement>(null)
 
   const totalModules = useMemo(() => modules.length, [modules])
   const withErrors = useMemo(() => modules.filter((module) => module.error).length, [modules])
@@ -96,6 +97,51 @@ function App() {
     [loadSummary],
   )
 
+  const handleAddModuleClick = useCallback(() => {
+    addModuleInputRef.current?.click()
+  }, [])
+
+  const handleAddModuleFiles = useCallback(
+    async (event: React.ChangeEvent<HTMLInputElement>) => {
+      const fileList = event.target.files
+      if (!fileList?.length) return
+      const files: Array<{ file: File; relativePath: string }> = []
+      for (let i = 0; i < fileList.length; i++) {
+        const file = fileList[i]
+        if (!file) continue
+        const path = (file as File & { webkitRelativePath?: string }).webkitRelativePath || file.name
+        const segments = path.split('/')
+        const relativePath = segments.length > 1 ? segments.slice(1).join('/') : file.name
+        files.push({ file, relativePath })
+      }
+      const manifestEntry = files.find((f) => f.file.name === 'manifest.json')
+      const moduleRootPrefix =
+        manifestEntry && manifestEntry.relativePath.includes('/')
+          ? `${manifestEntry.relativePath.split('/').slice(0, -1).join('/')}/`
+          : ''
+      const formData = new FormData()
+      for (const { file, relativePath } of files) {
+        if (moduleRootPrefix && !relativePath.startsWith(moduleRootPrefix)) continue
+        const key = moduleRootPrefix
+          ? relativePath.slice(moduleRootPrefix.length)
+          : relativePath
+        formData.append(key, file)
+      }
+      event.target.value = ''
+      try {
+        setIsBusy(true)
+        setErrorMessage(null)
+        await addModule(formData)
+        await loadSummary()
+      } catch (error) {
+        setErrorMessage(error instanceof Error ? error.message : 'Failed to add module')
+      } finally {
+        setIsBusy(false)
+      }
+    },
+    [loadSummary],
+  )
+
   return (
     <div className="hub">
       <header className="hub__header">
@@ -115,6 +161,23 @@ function App() {
           <button className="btn btn--primary" onClick={handleRescan} disabled={isBusy}>
             Пересканировать
           </button>
+          <button
+            type="button"
+            className="btn"
+            onClick={handleAddModuleClick}
+            disabled={isBusy}
+          >
+            Добавить модуль
+          </button>
+          <input
+            ref={addModuleInputRef}
+            type="file"
+            multiple
+            {...({ webkitdirectory: '', directory: '' } as React.InputHTMLAttributes<HTMLInputElement>)}
+            onChange={handleAddModuleFiles}
+            style={{ display: 'none' }}
+            aria-hidden
+          />
         </div>
       </header>
 

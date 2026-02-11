@@ -25,6 +25,16 @@ function App() {
     void loadSummary()
   }, [loadSummary])
 
+  useEffect(() => {
+    if (isBusy) {
+      return
+    }
+    const intervalId = window.setInterval(() => {
+      void loadSummary()
+    }, 3000)
+    return () => window.clearInterval(intervalId)
+  }, [isBusy, loadSummary])
+
   const handleRescan = useCallback(async () => {
     try {
       setIsBusy(true)

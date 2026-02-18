@@ -49,13 +49,13 @@ jobs:
       - name: Build frontend
         run: cd frontend && npm ci && npm run build
 
-      - name: Run GoReleaser (build only)
+      - name: Run GoReleaser (build only, без архивов)
         uses: goreleaser/goreleaser-action@v5
         with:
           version: latest
           args: >
             release
-            --skip=publish
+            --skip=publish,archive
             --clean
             --config .goreleaser.yml
             --config .goreleaser.override.${{ matrix.goos }}.yml
@@ -79,15 +79,28 @@ jobs:
           merge-multiple: true
           path: dist
 
+      - name: Prepare binaries for release (без архивов)
+        run: |
+          PROJECT='nekkus-hub'
+          for d in dist/${PROJECT}_*/; do
+            [ -d "$d" ] || continue
+            name=$(basename "$d" | sed 's/_v1$//')
+            f=$(find "$d" -type f | head -1)
+            [ -z "$f" ] && continue
+            if echo "$name" | grep -q windows; then
+              cp "$f" "dist/${name}.exe"
+            else
+              cp "$f" "dist/$name"
+            fi
+          done
+          rm -rf dist/${PROJECT}_* dist/*.json dist/*.yaml dist/*.md dist/*.txt 2>/dev/null || true
+
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
           name: ${{ github.ref_name }}
-          files: |
-            dist/*.tar.gz
-            dist/*.zip
-            dist/*_checksums.txt
+          files: dist/*
           draft: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

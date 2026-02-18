@@ -5,10 +5,7 @@ project_name: nekkus-hub
 
 before:
   hooks:
-    - cmd: npm install
-      dir: frontend
-    - cmd: npm run build
-      dir: frontend
+    - sh -c "cd frontend && npm install && npm run build"
 
 builds:
   - id: nekkus-hub

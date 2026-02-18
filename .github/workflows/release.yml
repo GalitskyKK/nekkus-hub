@@ -1,5 +1,5 @@
 # Сборка и публикация бинарников в GitHub Releases по тегу v*.
-# Matrix: linux на ubuntu, windows на windows, darwin на macos (systray/webview не кросс-компилируются).
+# Linux: ubuntu-22.04 — в Noble (24.04) нет libwebkit2gtk-4.0-dev, нужен для webview.
 
 name: Release
 
@@ -17,7 +17,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - runner: ubuntu-latest
+          - runner: ubuntu-22.04
             goos: linux
           - runner: windows-latest
             goos: windows

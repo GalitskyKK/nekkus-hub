@@ -1,4 +1,4 @@
-# Оставляем только windows для раннера windows.
+# Windows runner = amd64. CGO для webview/systray.
 builds:
   - id: nekkus-hub
     main: ./cmd
@@ -7,6 +7,5 @@ builds:
       - windows
     goarch:
       - amd64
-      - arm64
     env:
-      - CGO_ENABLED=0
+      - CGO_ENABLED=1

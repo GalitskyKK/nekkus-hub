@@ -1,4 +1,4 @@
-# Оставляем только linux для раннера ubuntu.
+# Ubuntu runner = amd64. Webview/systray — CGO, кросс-компиляция не поддерживается.
 builds:
   - id: nekkus-hub
     main: ./cmd
@@ -7,6 +7,5 @@ builds:
       - linux
     goarch:
       - amd64
-      - arm64
     env:
-      - CGO_ENABLED=0
+      - CGO_ENABLED=1

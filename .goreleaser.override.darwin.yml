@@ -1,4 +1,4 @@
-# Оставляем только darwin для раннера macos.
+# macos-latest = Apple Silicon (arm64). CGO для webview/systray; darwin/amd64 не собираем.
 builds:
   - id: nekkus-hub
     main: ./cmd
@@ -6,7 +6,6 @@ builds:
     goos:
       - darwin
     goarch:
-      - amd64
       - arm64
     env:
-      - CGO_ENABLED=0
+      - CGO_ENABLED=1

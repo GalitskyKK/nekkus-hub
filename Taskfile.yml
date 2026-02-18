@@ -11,7 +11,7 @@ includes:
 vars:
   APP_NAME: "nekkus-hub"
   BIN_DIR: "bin"
-  VITE_PORT: '{{.WAILS_VITE_PORT | default 9246}}'
+  VITE_PORT: '{{.VITE_PORT | default 9246}}'
 
 tasks:
   build:
@@ -30,9 +30,9 @@ tasks:
       - task: "{{OS}}:run"
 
   dev:
-    summary: Runs the application in development mode
+    summary: Runs the application in development mode (server + optional frontend dev)
     cmds:
-      - wails3 dev -config ./build/config.yml -port {{.VITE_PORT}}
+      - task: common:run:server
 
   setup:docker:
     summary: Builds Docker image for cross-compilation (~800MB download)

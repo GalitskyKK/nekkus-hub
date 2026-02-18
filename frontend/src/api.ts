@@ -1,14 +1,14 @@
-import type { ModuleSummary } from './types'
+import type { ModuleSummary } from "./types"
 
-const apiBase = import.meta.env.VITE_API_BASE ?? 'http://127.0.0.1:8080'
+const apiBase = import.meta.env.VITE_API_BASE ?? ""
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${apiBase}${path}`, {
     ...init,
     headers: {
-      'Content-Type': 'application/json',
-      ...(init?.headers ?? {}),
-    },
+      "Content-Type": "application/json",
+      ...(init?.headers ?? {})
+    }
   })
 
   if (!response.ok) {
@@ -19,31 +19,31 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return response.json() as Promise<T>
 }
 
-export const fetchSummary = () => request<ModuleSummary[]>('/api/summary')
+export const fetchSummary = () => request<ModuleSummary[]>("/api/summary")
 export const rescanModules = () =>
-  request<ModuleSummary[]>('/api/scan', {
-    method: 'POST',
+  request<ModuleSummary[]>("/api/scan", {
+    method: "POST"
   })
 export const startModule = (id: string) =>
   request<{ ok: boolean }>(`/api/modules/${encodeURIComponent(id)}/start`, {
-    method: 'POST',
+    method: "POST"
   })
 export const openModuleUI = (id: string) =>
   request<{ ok: boolean }>(`/api/modules/${encodeURIComponent(id)}/open-ui`, {
-    method: 'POST',
+    method: "POST"
   })
 export const stopModule = (id: string) =>
   request<{ ok: boolean }>(`/api/modules/${encodeURIComponent(id)}/stop`, {
-    method: 'POST',
+    method: "POST"
   })
 
-/** Add module from folder: FormData keys = relative paths (e.g. manifest.json, nekkus-vpn.exe). */
+/** Add module from folder: FormData keys = relative paths (e.g. manifest.json, nekkus-net.exe). */
 export async function addModule(formData: FormData): Promise<{ ok: string; module_id: string }> {
-  const apiBase = import.meta.env.VITE_API_BASE ?? 'http://127.0.0.1:8080'
+  const apiBase = import.meta.env.VITE_API_BASE ?? ""
   const response = await fetch(`${apiBase}/api/modules/add`, {
-    method: 'POST',
+    method: "POST",
     body: formData,
-    headers: {},
+    headers: {}
   })
   if (!response.ok) {
     const text = await response.text()

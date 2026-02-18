@@ -1,11 +1,17 @@
 module github.com/GalitskyKK/nekkus-hub
 
-go 1.25.7
+go 1.26
 
 require (
-	github.com/GalitskyKK/nekkus-core v0.0.0
-	github.com/wailsapp/wails/v3 v3.0.0-alpha.71
+	github.com/GalitskyKK/nekkus-core v0.1.0
 	google.golang.org/grpc v1.78.0
+)
+
+require (
+	fyne.io/systray v1.11.0 // indirect
+	github.com/gorilla/websocket v1.5.3 // indirect
+	github.com/hashicorp/mdns v1.0.5 // indirect
+	github.com/miekg/dns v1.1.41 // indirect
 )
 
 require (
@@ -41,7 +47,6 @@ require (
 	github.com/samber/lo v1.52.0 // indirect
 	github.com/sergi/go-diff v1.4.0 // indirect
 	github.com/skeema/knownhosts v1.3.2 // indirect
-	github.com/wailsapp/go-webview2 v1.0.23 // indirect
 	github.com/xanzy/ssh-agent v0.3.3 // indirect
 	golang.org/x/crypto v0.47.0 // indirect
 	golang.org/x/net v0.49.0 // indirect
@@ -52,4 +57,3 @@ require (
 	gopkg.in/warnings.v0 v0.1.2 // indirect
 )
 
-replace github.com/GalitskyKK/nekkus-core => ../nekkus-core

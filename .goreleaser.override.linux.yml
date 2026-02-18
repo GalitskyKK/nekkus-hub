@@ -1,0 +1,5 @@
+# Оставляем только linux для раннера ubuntu.
+builds:
+  - id: nekkus-hub
+    goos:
+      - linux

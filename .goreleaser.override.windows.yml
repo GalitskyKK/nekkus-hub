@@ -1,0 +1,5 @@
+# Оставляем только windows для раннера windows.
+builds:
+  - id: nekkus-hub
+    goos:
+      - windows

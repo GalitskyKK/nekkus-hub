@@ -1,4 +1,5 @@
 # Сборка и публикация бинарников в GitHub Releases по тегу v*.
+# Matrix: linux на ubuntu, windows на windows, darwin на macos (systray/webview не кросс-компилируются).
 
 name: Release
 
@@ -11,8 +12,21 @@ permissions:
   contents: write
 
 jobs:
-  release:
-    runs-on: ubuntu-latest
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-latest
+            goos: linux
+          - runner: windows-latest
+            goos: windows
+          - runner: macos-latest
+            goos: darwin
+    runs-on: ${{ matrix.runner }}
+    defaults:
+      run:
+        shell: bash
     steps:
       - uses: actions/checkout@v4
         with:
@@ -29,10 +43,42 @@ jobs:
       - name: Build frontend
         run: cd frontend && npm install && npm run build
 
-      - name: Run GoReleaser
+      - name: Run GoReleaser (build only)
         uses: goreleaser/goreleaser-action@v5
         with:
           version: latest
-          args: release --clean
+          args: >
+            release
+            --skip=publish
+            --clean
+            --config .goreleaser.yml
+            --config .goreleaser.override.${{ matrix.goos }}.yml
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload dist
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-${{ matrix.goos }}
+          path: dist/
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all dist artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: dist-*
+          merge-multiple: true
+          path: dist
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: ${{ github.ref_name }}
+          files: dist/*
+          draft: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

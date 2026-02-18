@@ -1,0 +1,5 @@
+# Оставляем только darwin для раннера macos.
+builds:
+  - id: nekkus-hub
+    goos:
+      - darwin

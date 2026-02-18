@@ -1,5 +1,12 @@
 # Оставляем только darwin для раннера macos.
 builds:
   - id: nekkus-hub
+    main: ./cmd
+    binary: nekkus-hub
     goos:
       - darwin
+    goarch:
+      - amd64
+      - arm64
+    env:
+      - CGO_ENABLED=0

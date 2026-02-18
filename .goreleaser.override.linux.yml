@@ -1,5 +1,12 @@
 # Оставляем только linux для раннера ubuntu.
 builds:
   - id: nekkus-hub
+    main: ./cmd
+    binary: nekkus-hub
     goos:
       - linux
+    goarch:
+      - amd64
+      - arm64
+    env:
+      - CGO_ENABLED=0

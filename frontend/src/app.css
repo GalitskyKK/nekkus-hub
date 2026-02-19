@@ -1,7 +1,8 @@
+/* Hub layout + блок ошибки. Тема и компоненты — @nekkus/ui-kit/theme.css */
 .hub {
   max-width: 1200px;
   margin: 0 auto;
-  padding: 32px 24px 80px;
+  padding: 0;
   display: flex;
   flex-direction: column;
   gap: 24px;
@@ -24,145 +25,117 @@
 
 .hub__title {
   margin: 0;
-  font-size: 28px;
+  font-size: 24px;
+  font-weight: 600;
+  color: #e2e8f0;
 }
 
 .hub__meta {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 16px;
 }
 
 .hub__stat {
-  background: #ffffff;
+  background: #12121a;
+  border: 1px solid #1e1e2e;
   padding: 10px 14px;
-  border-radius: 12px;
-  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
+  border-radius: 8px;
   display: flex;
   flex-direction: column;
   gap: 2px;
   font-size: 12px;
-  color: #64748b;
+  color: #94a3b8;
 }
 
 .hub__stat strong {
-  font-size: 18px;
-  color: #0f172a;
+  font-size: 16px;
+  color: #e2e8f0;
+  font-family: "JetBrains Mono", "Fira Code", monospace;
 }
 
 .hub__error {
-  background: #fee2e2;
-  color: #9f1239;
+  background: rgba(239, 68, 68, 0.15);
+  color: #ef4444;
   padding: 12px 16px;
-  border-radius: 12px;
+  border-radius: 8px;
   font-size: 14px;
+}
+
+.hub__grid-wrap {
+  margin-bottom: 0;
 }
 
 .hub__grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-  gap: 20px;
+  gap: 16px;
 }
 
-.card {
-  background: #ffffff;
-  border-radius: 16px;
-  padding: 18px;
-  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
+.hub__card {
   display: flex;
   flex-direction: column;
   gap: 12px;
 }
 
-.card__header {
+.hub__card-header {
   display: flex;
   justify-content: space-between;
   gap: 12px;
 }
 
-.card__header h2 {
+.hub__card-title {
   margin: 0;
-  font-size: 18px;
+  font-size: 16px;
+  font-weight: 600;
+  color: #e2e8f0;
 }
 
-.card__header p {
+.hub__card-desc {
   margin: 4px 0 0;
-  color: #64748b;
+  color: #94a3b8;
   font-size: 13px;
 }
 
-.card__body {
-  background: #f8fafc;
-  border-radius: 12px;
+.hub__card-body {
+  background: #0a0a0f;
+  border-radius: 10px;
   padding: 12px;
   font-size: 12px;
-  color: #0f172a;
+  color: #e2e8f0;
+  font-family: "JetBrains Mono", "Fira Code", monospace;
 }
 
-.card__body pre {
+.hub__card-pre {
   margin: 0;
   white-space: pre-wrap;
   word-break: break-word;
 }
 
-.card__footer {
+.hub__card-error {
+  color: #ef4444;
+  font-weight: 600;
+}
+
+.hub__card-footer {
   display: flex;
   justify-content: space-between;
   align-items: center;
   flex-wrap: wrap;
   gap: 8px;
   font-size: 12px;
-  color: #94a3b8;
+  color: #475569;
 }
 
-.card__actions {
+.hub__card-actions {
   display: flex;
   gap: 8px;
-}
-
-.card__error {
-  color: #b91c1c;
-  font-weight: 600;
-}
-
-.pill {
-  background: #e2e8f0;
-  color: #475569;
-  padding: 4px 10px;
-  border-radius: 999px;
-  font-size: 12px;
-  font-weight: 600;
-  align-self: flex-start;
-}
-
-.btn {
-  border: none;
-  border-radius: 12px;
-  padding: 10px 16px;
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  background: #e2e8f0;
-  color: #0f172a;
-}
-
-.btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.btn--primary {
-  background: #2563eb;
-  color: #ffffff;
 }
 
 @media (max-width: 900px) {
   .hub__header {
     flex-direction: column;
     align-items: flex-start;
-  }
-
-  .hub__meta {
-    flex-wrap: wrap;
   }
 }

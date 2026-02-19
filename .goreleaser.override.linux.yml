@@ -1,4 +1,5 @@
 # Ubuntu runner = amd64. Webview/systray — CGO, кросс-компиляция не поддерживается.
+# .goreleaser.override.linux.yml
 builds:
   - id: nekkus-hub
     main: ./cmd

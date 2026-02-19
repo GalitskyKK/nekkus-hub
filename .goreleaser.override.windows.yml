@@ -1,4 +1,6 @@
 # Windows runner = amd64. CGO для webview/systray.
+# -H windowsgui = без консоли (GUI-only).
+# .goreleaser.override.windows.yml
 builds:
   - id: nekkus-hub
     main: ./cmd
@@ -9,3 +11,5 @@ builds:
       - amd64
     env:
       - CGO_ENABLED=1
+    ldflags:
+      - -H windowsgui

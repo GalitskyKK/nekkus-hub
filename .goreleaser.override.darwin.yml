@@ -1,4 +1,5 @@
 # macos-latest = Apple Silicon (arm64). CGO для webview/systray; darwin/amd64 не собираем.
+# .goreleaser.override.darwin.yml
 builds:
   - id: nekkus-hub
     main: ./cmd

@@ -1,6 +1,7 @@
 # Релиз бинарников nekkus-hub в GitHub Releases.
 # Триггер: git tag v* и push (например v0.1.0).
 # В CI используется matrix: каждый раннер собирает только свою ОС (см. override-файлы).
+# .goreleaser.yml
 
 project_name: nekkus-hub
 

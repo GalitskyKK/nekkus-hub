@@ -35,4 +35,19 @@ declare module "@nekkus/ui-kit" {
     variant?: "default" | "success" | "warning" | "error" | "info";
   }
   export const Pill: FC<PillProps>;
+
+  export interface DataTextProps extends React.HTMLAttributes<HTMLSpanElement> {
+    children: React.ReactNode;
+    as?: "span" | "code" | "pre";
+    size?: "sm" | "base" | "metric";
+  }
+  export const DataText: FC<DataTextProps>;
+
+  export interface StatusDotProps {
+    status: "online" | "offline" | "busy" | "error";
+    label?: string;
+    size?: number;
+    pulse?: boolean;
+  }
+  export const StatusDot: FC<StatusDotProps>;
 }

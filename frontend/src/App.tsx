@@ -2,9 +2,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Button,
   Card,
+  DataText,
   PageLayout,
   Pill,
   Section,
+  StatusDot,
 } from "@nekkus/ui-kit";
 import {
   addModule,
@@ -15,6 +17,31 @@ import {
   stopModule,
 } from "./api";
 import type { ModuleSummary } from "./types";
+
+/** Payload от Net /api/status для виджета в Hub */
+type NetStatusPayload = {
+  connected?: boolean;
+  server?: string;
+  downloadSpeed?: number;
+  uploadSpeed?: number;
+  totalDownload?: number;
+  totalUpload?: number;
+};
+
+function formatBytes(bytes: number): string {
+  if (bytes === 0) return "0 B";
+  const k = 1024;
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return `${(bytes / Math.pow(k, i)).toFixed(1)} ${["B", "KB", "MB", "GB", "TB"][i]}`;
+}
+
+function formatSpeed(bytesPerSec: number): string {
+  return `${formatBytes(bytesPerSec)}/s`;
+}
+
+function isNetPayload(payload: unknown): payload is NetStatusPayload {
+  return payload != null && typeof payload === "object" && "connected" in payload;
+}
 
 function App() {
   const [modules, setModules] = useState<ModuleSummary[]>([]);
@@ -249,12 +276,73 @@ function App() {
                     <div className="hub__card-error">
                       Ошибка: {module.error}
                     </div>
+                  ) : isNetPayload(module.payload) ? (
+                    <div className="hub__net-widget">
+                      <div className="hub__net-widget-status">
+                        <StatusDot
+                          status={module.payload.connected ? "online" : "offline"}
+                          label={
+                            module.payload.connected
+                              ? "Подключено"
+                              : "Отключено"
+                          }
+                          pulse={!!module.payload.connected}
+                        />
+                        <span className="hub__net-widget-server">
+                          {module.payload.server || "—"}
+                        </span>
+                      </div>
+                      {!module.payload.connected ? (
+                        <p className="hub__net-widget-hint">
+                          Откройте UI модуля и подключитесь к VPN — тогда здесь появятся скорость и трафик (обновление раз в 3 с).
+                        </p>
+                      ) : null}
+                      <div className="hub__net-widget-metrics">
+                        <div className="hub__net-widget-metric">
+                          <span className="hub__net-widget-label">↓</span>
+                          <DataText size="base">
+                            {formatSpeed(
+                              module.payload.downloadSpeed ?? 0,
+                            )}
+                          </DataText>
+                        </div>
+                        <div className="hub__net-widget-metric">
+                          <span className="hub__net-widget-label">↑</span>
+                          <DataText size="base">
+                            {formatSpeed(
+                              module.payload.uploadSpeed ?? 0,
+                            )}
+                          </DataText>
+                        </div>
+                        <div className="hub__net-widget-metric">
+                          <span className="hub__net-widget-label">Всего ↓</span>
+                          <DataText size="sm">
+                            {formatBytes(
+                              module.payload.totalDownload ?? 0,
+                            )}
+                          </DataText>
+                        </div>
+                        <div className="hub__net-widget-metric">
+                          <span className="hub__net-widget-label">Всего ↑</span>
+                          <DataText size="sm">
+                            {formatBytes(
+                              module.payload.totalUpload ?? 0,
+                            )}
+                          </DataText>
+                        </div>
+                      </div>
+                    </div>
+                  ) : module.payload != null ? (
+                    <details className="hub__card-details">
+                      <summary className="hub__card-details-summary">
+                        Данные модуля
+                      </summary>
+                      <pre className="hub__card-pre">
+                        {JSON.stringify(module.payload, null, 2)}
+                      </pre>
+                    </details>
                   ) : (
-                    <pre className="hub__card-pre">
-                      {module.payload
-                        ? JSON.stringify(module.payload, null, 2)
-                        : "Нет данных"}
-                    </pre>
+                    <p className="hub__card-no-data">Нет данных</p>
                   )}
                 </div>
                 <footer className="hub__card-footer">

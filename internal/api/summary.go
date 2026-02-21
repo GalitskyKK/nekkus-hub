@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
 	"time"
 
 	pb "github.com/GalitskyKK/nekkus-core/pkg/protocol"
@@ -66,9 +68,42 @@ func fetchWidgetData(addr string) (string, json.RawMessage, error) {
 	if len(widgets) == 0 {
 		return "", nil, nil
 	}
-	widgetType := widgets[0].GetId()
+	w0 := widgets[0]
+	widgetType := w0.GetId()
 	if widgetType == "" {
-		widgetType = widgets[0].GetTitle()
+		widgetType = w0.GetTitle()
 	}
-	return widgetType, nil, nil
+
+	// Подставляем payload из HTTP модуля (например /api/status для Net).
+	infoResp, err := client.GetInfo(ctx, &pb.Empty{})
+	if err != nil {
+		return widgetType, nil, nil
+	}
+	baseURL := infoResp.GetUiUrl()
+	if baseURL == "" {
+		return widgetType, nil, nil
+	}
+	endpoint := w0.GetDataEndpoint()
+	if endpoint == "" {
+		return widgetType, nil, nil
+	}
+	url := baseURL + endpoint
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return widgetType, nil, nil
+	}
+	httpClient := &http.Client{Timeout: 2 * time.Second}
+	res, err := httpClient.Do(req)
+	if err != nil {
+		return widgetType, nil, nil
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return widgetType, nil, nil
+	}
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		return widgetType, nil, nil
+	}
+	return widgetType, body, nil
 }

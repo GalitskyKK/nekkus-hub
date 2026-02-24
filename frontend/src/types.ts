@@ -99,3 +99,32 @@ export const PRESET_NETWORK: MonitorVisibleSettings = {
   total_download: true,
   total_upload: true,
 }
+
+const STORAGE_KEY_BY_MODULE = "hub_monitor_visible_by_module";
+
+export function loadMonitorVisibleByModule(): Record<string, MonitorVisibleSettings> {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_BY_MODULE);
+    if (!raw) return {};
+    return JSON.parse(raw) as Record<string, MonitorVisibleSettings>;
+  } catch {
+    return {};
+  }
+}
+
+export function saveMonitorVisibleByModule(
+  byModule: Record<string, MonitorVisibleSettings>,
+): void {
+  try {
+    localStorage.setItem(STORAGE_KEY_BY_MODULE, JSON.stringify(byModule));
+  } catch {
+    // ignore
+  }
+}
+
+export function getModuleVisible(
+  moduleId: string,
+  byModule: Record<string, MonitorVisibleSettings>,
+): MonitorVisibleSettings {
+  return byModule[moduleId] ?? DEFAULT_MONITOR_VISIBLE;
+}

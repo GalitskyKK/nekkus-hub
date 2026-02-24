@@ -22,12 +22,13 @@ import type {
 } from "./types";
 import {
   DEFAULT_MONITOR_VISIBLE,
+  getModuleVisible,
+  loadMonitorVisibleByModule,
   PRESET_EXTENDED,
   PRESET_NETWORK,
   PRESET_STANDARD,
+  saveMonitorVisibleByModule,
 } from "./types";
-
-const MONITOR_VISIBLE_STORAGE_KEY = "hub_monitor_visible";
 
 /** Payload от Net /api/status для виджета в Hub */
 type NetStatusPayload = {
@@ -48,6 +49,9 @@ type EyeStatsPayload = {
   disk_percent?: number;
   disk_used_gb?: number;
   disk_total_gb?: number;
+  gpu_percent?: number;
+  gpu_name?: string;
+  gpu_temp_c?: number;
   uptime_sec?: number;
   process_count?: number;
   timestamp?: number;
@@ -85,52 +89,45 @@ function isEyePayload(payload: unknown): payload is EyeStatsPayload {
   );
 }
 
-function loadMonitorVisible(): MonitorVisibleSettings {
-  try {
-    const raw = localStorage.getItem(MONITOR_VISIBLE_STORAGE_KEY);
-    if (!raw) return DEFAULT_MONITOR_VISIBLE;
-    const parsed = JSON.parse(raw) as Partial<MonitorVisibleSettings>;
-    return { ...DEFAULT_MONITOR_VISIBLE, ...parsed };
-  } catch {
-    return DEFAULT_MONITOR_VISIBLE;
-  }
-}
-
-function saveMonitorVisible(settings: MonitorVisibleSettings): void {
-  try {
-    localStorage.setItem(MONITOR_VISIBLE_STORAGE_KEY, JSON.stringify(settings));
-  } catch {
-    // ignore
-  }
-}
-
 function App() {
   const [modules, setModules] = useState<ModuleSummary[]>([]);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isBusy, setIsBusy] = useState(false);
-  const [monitorVisible, setMonitorVisible] = useState<MonitorVisibleSettings>(
-    loadMonitorVisible,
+  const [monitorVisibleByModule, setMonitorVisibleByModule] = useState<
+    Record<string, MonitorVisibleSettings>
+  >(loadMonitorVisibleByModule);
+  const [configOpenModuleId, setConfigOpenModuleId] = useState<string | null>(
+    null,
   );
-  const [monitorSettingsOpen, setMonitorSettingsOpen] = useState(false);
   const addModuleInputRef = useRef<HTMLInputElement>(null);
 
-  const updateMonitorVisible = useCallback(
-    (patch: Partial<MonitorVisibleSettings>) => {
-      setMonitorVisible((prev) => {
-        const next = { ...prev, ...patch };
-        saveMonitorVisible(next);
+  const updateModuleVisible = useCallback(
+    (moduleId: string, patch: Partial<MonitorVisibleSettings>) => {
+      setMonitorVisibleByModule((prev) => {
+        const next = {
+          ...prev,
+          [moduleId]: {
+            ...(prev[moduleId] ?? DEFAULT_MONITOR_VISIBLE),
+            ...patch,
+          },
+        };
+        saveMonitorVisibleByModule(next);
         return next;
       });
     },
     [],
   );
 
-  const applyPreset = useCallback((preset: MonitorVisibleSettings) => {
-    setMonitorVisible(() => {
-      saveMonitorVisible(preset);
-      return preset;
-    });
-  }, []);
+  const applyPresetForModule = useCallback(
+    (moduleId: string, preset: MonitorVisibleSettings) => {
+      setMonitorVisibleByModule((prev) => {
+        const next = { ...prev, [moduleId]: preset };
+        saveMonitorVisibleByModule(next);
+        return next;
+      });
+    },
+    [],
+  );
 
   const totalModules = useMemo(() => modules.length, [modules]);
   const withErrors = useMemo(
@@ -311,160 +308,6 @@ function App() {
             >
               Добавить модуль
             </Button>
-            <details
-              className="hub__monitor-settings"
-              open={monitorSettingsOpen}
-              onToggle={(e) =>
-                setMonitorSettingsOpen((e.target as HTMLDetailsElement).open)
-              }
-            >
-              <summary className="hub__monitor-settings-summary">
-                Какие данные показывать
-              </summary>
-              <div className="hub__monitor-settings-grid" role="group">
-                <span className="hub__monitor-settings-presets">
-                  Пресеты:
-                </span>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => applyPreset(PRESET_STANDARD)}
-                  disabled={isBusy}
-                >
-                  Стандарт
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => applyPreset(PRESET_EXTENDED)}
-                  disabled={isBusy}
-                >
-                  Расширенный
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => applyPreset(PRESET_NETWORK)}
-                  disabled={isBusy}
-                >
-                  Сеть
-                </Button>
-                <label className="hub__monitor-settings-label">
-                  <input
-                    type="checkbox"
-                    checked={monitorVisible.cpu}
-                    onChange={(e) =>
-                      updateMonitorVisible({ cpu: e.target.checked })
-                    }
-                  />
-                  CPU
-                </label>
-                <label className="hub__monitor-settings-label">
-                  <input
-                    type="checkbox"
-                    checked={monitorVisible.memory}
-                    onChange={(e) =>
-                      updateMonitorVisible({ memory: e.target.checked })
-                    }
-                  />
-                  Память %
-                </label>
-                <label className="hub__monitor-settings-label">
-                  <input
-                    type="checkbox"
-                    checked={monitorVisible.memory_mb}
-                    onChange={(e) =>
-                      updateMonitorVisible({ memory_mb: e.target.checked })
-                    }
-                  />
-                  Память МБ
-                </label>
-                <label className="hub__monitor-settings-label">
-                  <input
-                    type="checkbox"
-                    checked={monitorVisible.disk_percent}
-                    onChange={(e) =>
-                      updateMonitorVisible({ disk_percent: e.target.checked })
-                    }
-                  />
-                  Диск %
-                </label>
-                <label className="hub__monitor-settings-label">
-                  <input
-                    type="checkbox"
-                    checked={monitorVisible.disk_gb}
-                    onChange={(e) =>
-                      updateMonitorVisible({ disk_gb: e.target.checked })
-                    }
-                  />
-                  Диск ГБ
-                </label>
-                <label className="hub__monitor-settings-label">
-                  <input
-                    type="checkbox"
-                    checked={monitorVisible.uptime}
-                    onChange={(e) =>
-                      updateMonitorVisible({ uptime: e.target.checked })
-                    }
-                  />
-                  Аптайм
-                </label>
-                <label className="hub__monitor-settings-label">
-                  <input
-                    type="checkbox"
-                    checked={monitorVisible.process_count}
-                    onChange={(e) =>
-                      updateMonitorVisible({ process_count: e.target.checked })
-                    }
-                  />
-                  Процессы
-                </label>
-                <label className="hub__monitor-settings-label">
-                  <input
-                    type="checkbox"
-                    checked={monitorVisible.download_speed}
-                    onChange={(e) =>
-                      updateMonitorVisible({
-                        download_speed: e.target.checked,
-                      })
-                    }
-                  />
-                  Скорость ↓
-                </label>
-                <label className="hub__monitor-settings-label">
-                  <input
-                    type="checkbox"
-                    checked={monitorVisible.upload_speed}
-                    onChange={(e) =>
-                      updateMonitorVisible({ upload_speed: e.target.checked })
-                    }
-                  />
-                  Скорость ↑
-                </label>
-                <label className="hub__monitor-settings-label">
-                  <input
-                    type="checkbox"
-                    checked={monitorVisible.total_download}
-                    onChange={(e) =>
-                      updateMonitorVisible({
-                        total_download: e.target.checked,
-                      })
-                    }
-                  />
-                  Всего ↓
-                </label>
-                <label className="hub__monitor-settings-label">
-                  <input
-                    type="checkbox"
-                    checked={monitorVisible.total_upload}
-                    onChange={(e) =>
-                      updateMonitorVisible({ total_upload: e.target.checked })
-                    }
-                  />
-                  Всего ↑
-                </label>
-              </div>
-            </details>
             <input
               ref={addModuleInputRef}
               type="file"
@@ -488,7 +331,12 @@ function App() {
 
         <Section title="" className="hub__grid-wrap">
           <div className="hub__grid">
-            {modules.map((module) => (
+            {modules.map((module) => {
+              const moduleVisible = getModuleVisible(
+                module.manifest.id,
+                monitorVisibleByModule,
+              );
+              return (
               <Card
                 key={module.manifest.id}
                 title=""
@@ -504,10 +352,112 @@ function App() {
                       {module.manifest.description || "No description"}
                     </p>
                   </div>
-                  <Pill variant="default">
-                    {module.manifest.widget?.type || "widget"}
-                  </Pill>
+                  <div className="hub__card-header-actions">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() =>
+                        setConfigOpenModuleId((id) =>
+                          id === module.manifest.id ? null : module.manifest.id,
+                        )
+                      }
+                      aria-expanded={configOpenModuleId === module.manifest.id}
+                      aria-haspopup="true"
+                      title="Что показывать в виджете"
+                    >
+                      ⚙
+                    </Button>
+                    <Pill variant="default">
+                      {module.manifest.widget?.type || "widget"}
+                    </Pill>
+                  </div>
                 </header>
+                {configOpenModuleId === module.manifest.id ? (
+                  <div className="hub__card-config" role="dialog" aria-label="Настройки отображения">
+                    <p className="hub__card-config-title">Что показывать</p>
+                    <div className="hub__card-config-presets">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() =>
+                          applyPresetForModule(
+                            module.manifest.id,
+                            PRESET_STANDARD,
+                          )
+                        }
+                      >
+                        Стандарт
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() =>
+                          applyPresetForModule(
+                            module.manifest.id,
+                            PRESET_EXTENDED,
+                          )
+                        }
+                      >
+                        Расширенный
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() =>
+                          applyPresetForModule(
+                            module.manifest.id,
+                            PRESET_NETWORK,
+                          )
+                        }
+                      >
+                        Сеть
+                      </Button>
+                    </div>
+                    <div className="hub__card-config-grid">
+                      {(
+                        [
+                          ["cpu", "CPU"],
+                          ["memory", "Память %"],
+                          ["memory_mb", "Память МБ"],
+                          ["disk_percent", "Диск %"],
+                          ["disk_gb", "Диск ГБ"],
+                          ["uptime", "Аптайм"],
+                          ["process_count", "Процессы"],
+                          ["download_speed", "Скорость ↓"],
+                          ["upload_speed", "Скорость ↑"],
+                          ["total_download", "Всего ↓"],
+                          ["total_upload", "Всего ↑"],
+                        ] as const
+                      ).map(([key, label]) => {
+                        const visible = getModuleVisible(
+                          module.manifest.id,
+                          monitorVisibleByModule,
+                        );
+                        return (
+                          <label
+                            key={key}
+                            className="hub__monitor-settings-label"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={
+                                visible[
+                                  key as keyof MonitorVisibleSettings
+                                ] ?? false
+                              }
+                              onChange={(e) =>
+                                updateModuleVisible(module.manifest.id, {
+                                  [key]: e.target.checked,
+                                })
+                              }
+                            />
+                            {label}
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : null}
                 <div className="hub__card-body">
                   {module.error ? (
                     <div className="hub__card-error">
@@ -535,7 +485,7 @@ function App() {
                         </p>
                       ) : null}
                       <div className="hub__net-widget-metrics">
-                        {monitorVisible.download_speed ? (
+                        {moduleVisible.download_speed ? (
                           <div className="hub__net-widget-metric">
                             <span className="hub__net-widget-label">↓</span>
                             <DataText size="base">
@@ -545,7 +495,7 @@ function App() {
                             </DataText>
                           </div>
                         ) : null}
-                        {monitorVisible.upload_speed ? (
+                        {moduleVisible.upload_speed ? (
                           <div className="hub__net-widget-metric">
                             <span className="hub__net-widget-label">↑</span>
                             <DataText size="base">
@@ -555,7 +505,7 @@ function App() {
                             </DataText>
                           </div>
                         ) : null}
-                        {monitorVisible.total_download ? (
+                        {moduleVisible.total_download ? (
                           <div className="hub__net-widget-metric">
                             <span className="hub__net-widget-label">Всего ↓</span>
                             <DataText size="sm">
@@ -565,7 +515,7 @@ function App() {
                             </DataText>
                           </div>
                         ) : null}
-                        {monitorVisible.total_upload ? (
+                        {moduleVisible.total_upload ? (
                           <div className="hub__net-widget-metric">
                             <span className="hub__net-widget-label">Всего ↑</span>
                             <DataText size="sm">
@@ -579,15 +529,18 @@ function App() {
                     </div>
                   ) : isEyePayload(module.payload) ? (
                     <div className="hub__eye-widget">
-                      {(monitorVisible.cpu ||
-                        monitorVisible.memory ||
-                        monitorVisible.memory_mb ||
-                        monitorVisible.disk_percent ||
-                        monitorVisible.disk_gb ||
-                        monitorVisible.uptime ||
-                        monitorVisible.process_count) ? (
+                      {(moduleVisible.cpu ||
+                        moduleVisible.memory ||
+                        moduleVisible.memory_mb ||
+                        moduleVisible.disk_percent ||
+                        moduleVisible.disk_gb ||
+                        moduleVisible.uptime ||
+                        moduleVisible.process_count ||
+                        module.payload.gpu_percent != null ||
+                        (module.payload.gpu_name != null && module.payload.gpu_name !== "") ||
+                        module.payload.gpu_temp_c != null) ? (
                         <div className="hub__eye-widget-metrics">
-                          {monitorVisible.cpu ? (
+                          {moduleVisible.cpu ? (
                             <div className="hub__eye-widget-metric">
                               <span className="hub__eye-widget-label">CPU</span>
                               <DataText size="base">
@@ -595,7 +548,7 @@ function App() {
                               </DataText>
                             </div>
                           ) : null}
-                          {monitorVisible.memory ? (
+                          {moduleVisible.memory ? (
                             <div className="hub__eye-widget-metric">
                               <span className="hub__eye-widget-label">Память %</span>
                               <DataText size="base">
@@ -603,7 +556,7 @@ function App() {
                               </DataText>
                             </div>
                           ) : null}
-                          {monitorVisible.memory_mb ? (
+                          {moduleVisible.memory_mb ? (
                             <div className="hub__eye-widget-metric">
                               <span className="hub__eye-widget-label">Память</span>
                               <DataText size="sm">
@@ -611,7 +564,7 @@ function App() {
                               </DataText>
                             </div>
                           ) : null}
-                          {monitorVisible.disk_percent ? (
+                          {moduleVisible.disk_percent ? (
                             <div className="hub__eye-widget-metric">
                               <span className="hub__eye-widget-label">Диск %</span>
                               <DataText size="base">
@@ -619,7 +572,7 @@ function App() {
                               </DataText>
                             </div>
                           ) : null}
-                          {monitorVisible.disk_gb ? (
+                          {moduleVisible.disk_gb ? (
                             <div className="hub__eye-widget-metric">
                               <span className="hub__eye-widget-label">Диск</span>
                               <DataText size="sm">
@@ -627,7 +580,7 @@ function App() {
                               </DataText>
                             </div>
                           ) : null}
-                          {monitorVisible.uptime ? (
+                          {moduleVisible.uptime ? (
                             <div className="hub__eye-widget-metric">
                               <span className="hub__eye-widget-label">Аптайм</span>
                               <DataText size="sm">
@@ -635,7 +588,7 @@ function App() {
                               </DataText>
                             </div>
                           ) : null}
-                          {monitorVisible.process_count ? (
+                          {moduleVisible.process_count ? (
                             <div className="hub__eye-widget-metric">
                               <span className="hub__eye-widget-label">Процессы</span>
                               <DataText size="sm">
@@ -643,10 +596,24 @@ function App() {
                               </DataText>
                             </div>
                           ) : null}
+                          {(module.payload.gpu_percent != null || (module.payload.gpu_name != null && module.payload.gpu_name !== "") || module.payload.gpu_temp_c != null) ? (
+                            <div className="hub__eye-widget-metric">
+                              <span className="hub__eye-widget-label">GPU</span>
+                              <DataText size="sm">
+                                {module.payload.gpu_percent != null
+                                  ? `${module.payload.gpu_percent.toFixed(1)}%`
+                                  : "—"}
+                                {module.payload.gpu_name ? ` · ${module.payload.gpu_name}` : ""}
+                                {module.payload.gpu_temp_c != null && module.payload.gpu_temp_c > 0
+                                  ? ` · ${module.payload.gpu_temp_c} °C`
+                                  : ""}
+                              </DataText>
+                            </div>
+                          ) : null}
                         </div>
                       ) : (
                         <p className="hub__card-no-data">
-                          Включите метрики в «Какие данные показывать»
+                          Включите метрики в «Настроить» на карточке
                         </p>
                       )}
                     </div>
@@ -701,7 +668,8 @@ function App() {
                   </div>
                 </footer>
               </Card>
-            ))}
+              );
+            })}
           </div>
         </Section>
       </div>

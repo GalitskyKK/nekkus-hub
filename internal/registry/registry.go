@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"sort"
 	"sync"
 	"time"
 
@@ -79,7 +80,7 @@ func (r *Registry) RegisterModule(moduleID, version string, pid int32) {
 	r.mu.Unlock()
 }
 
-// ListModules returns a copy of all discovered manifests.
+// ListModules returns a copy of all discovered manifests in stable order (by ID).
 func (r *Registry) ListModules() []manifest.ModuleManifest {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
@@ -88,6 +89,7 @@ func (r *Registry) ListModules() []manifest.ModuleManifest {
 	for _, m := range r.manifests {
 		modules = append(modules, m)
 	}
+	sort.Slice(modules, func(i, j int) bool { return modules[i].ID < modules[j].ID })
 	return modules
 }
 

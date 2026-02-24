@@ -16,7 +16,18 @@ import {
   startModule,
   stopModule,
 } from "./api";
-import type { ModuleSummary } from "./types";
+import type {
+  ModuleSummary,
+  MonitorVisibleSettings,
+} from "./types";
+import {
+  DEFAULT_MONITOR_VISIBLE,
+  PRESET_EXTENDED,
+  PRESET_NETWORK,
+  PRESET_STANDARD,
+} from "./types";
+
+const MONITOR_VISIBLE_STORAGE_KEY = "hub_monitor_visible";
 
 /** Payload от Net /api/status для виджета в Hub */
 type NetStatusPayload = {
@@ -26,6 +37,20 @@ type NetStatusPayload = {
   uploadSpeed?: number;
   totalDownload?: number;
   totalUpload?: number;
+};
+
+/** Payload от Eye /api/stats для виджета в Hub */
+type EyeStatsPayload = {
+  cpu_percent?: number;
+  memory_percent?: number;
+  memory_used_mb?: number;
+  memory_total_mb?: number;
+  disk_percent?: number;
+  disk_used_gb?: number;
+  disk_total_gb?: number;
+  uptime_sec?: number;
+  process_count?: number;
+  timestamp?: number;
 };
 
 function formatBytes(bytes: number): string {
@@ -39,15 +64,73 @@ function formatSpeed(bytesPerSec: number): string {
   return `${formatBytes(bytesPerSec)}/s`;
 }
 
+function formatUptime(totalSeconds: number): string {
+  const safeSeconds = Math.max(0, Math.floor(totalSeconds));
+  const hours = Math.floor(safeSeconds / 3600);
+  const minutes = Math.floor((safeSeconds % 3600) / 60);
+  const seconds = safeSeconds % 60;
+  if (hours <= 0) return `${minutes}м ${seconds}с`;
+  return `${hours}ч ${minutes}м`;
+}
+
 function isNetPayload(payload: unknown): payload is NetStatusPayload {
   return payload != null && typeof payload === "object" && "connected" in payload;
+}
+
+function isEyePayload(payload: unknown): payload is EyeStatsPayload {
+  return (
+    payload != null &&
+    typeof payload === "object" &&
+    ("cpu_percent" in payload || "memory_percent" in payload)
+  );
+}
+
+function loadMonitorVisible(): MonitorVisibleSettings {
+  try {
+    const raw = localStorage.getItem(MONITOR_VISIBLE_STORAGE_KEY);
+    if (!raw) return DEFAULT_MONITOR_VISIBLE;
+    const parsed = JSON.parse(raw) as Partial<MonitorVisibleSettings>;
+    return { ...DEFAULT_MONITOR_VISIBLE, ...parsed };
+  } catch {
+    return DEFAULT_MONITOR_VISIBLE;
+  }
+}
+
+function saveMonitorVisible(settings: MonitorVisibleSettings): void {
+  try {
+    localStorage.setItem(MONITOR_VISIBLE_STORAGE_KEY, JSON.stringify(settings));
+  } catch {
+    // ignore
+  }
 }
 
 function App() {
   const [modules, setModules] = useState<ModuleSummary[]>([]);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isBusy, setIsBusy] = useState(false);
+  const [monitorVisible, setMonitorVisible] = useState<MonitorVisibleSettings>(
+    loadMonitorVisible,
+  );
+  const [monitorSettingsOpen, setMonitorSettingsOpen] = useState(false);
   const addModuleInputRef = useRef<HTMLInputElement>(null);
+
+  const updateMonitorVisible = useCallback(
+    (patch: Partial<MonitorVisibleSettings>) => {
+      setMonitorVisible((prev) => {
+        const next = { ...prev, ...patch };
+        saveMonitorVisible(next);
+        return next;
+      });
+    },
+    [],
+  );
+
+  const applyPreset = useCallback((preset: MonitorVisibleSettings) => {
+    setMonitorVisible(() => {
+      saveMonitorVisible(preset);
+      return preset;
+    });
+  }, []);
 
   const totalModules = useMemo(() => modules.length, [modules]);
   const withErrors = useMemo(
@@ -228,6 +311,160 @@ function App() {
             >
               Добавить модуль
             </Button>
+            <details
+              className="hub__monitor-settings"
+              open={monitorSettingsOpen}
+              onToggle={(e) =>
+                setMonitorSettingsOpen((e.target as HTMLDetailsElement).open)
+              }
+            >
+              <summary className="hub__monitor-settings-summary">
+                Какие данные показывать
+              </summary>
+              <div className="hub__monitor-settings-grid" role="group">
+                <span className="hub__monitor-settings-presets">
+                  Пресеты:
+                </span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => applyPreset(PRESET_STANDARD)}
+                  disabled={isBusy}
+                >
+                  Стандарт
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => applyPreset(PRESET_EXTENDED)}
+                  disabled={isBusy}
+                >
+                  Расширенный
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => applyPreset(PRESET_NETWORK)}
+                  disabled={isBusy}
+                >
+                  Сеть
+                </Button>
+                <label className="hub__monitor-settings-label">
+                  <input
+                    type="checkbox"
+                    checked={monitorVisible.cpu}
+                    onChange={(e) =>
+                      updateMonitorVisible({ cpu: e.target.checked })
+                    }
+                  />
+                  CPU
+                </label>
+                <label className="hub__monitor-settings-label">
+                  <input
+                    type="checkbox"
+                    checked={monitorVisible.memory}
+                    onChange={(e) =>
+                      updateMonitorVisible({ memory: e.target.checked })
+                    }
+                  />
+                  Память %
+                </label>
+                <label className="hub__monitor-settings-label">
+                  <input
+                    type="checkbox"
+                    checked={monitorVisible.memory_mb}
+                    onChange={(e) =>
+                      updateMonitorVisible({ memory_mb: e.target.checked })
+                    }
+                  />
+                  Память МБ
+                </label>
+                <label className="hub__monitor-settings-label">
+                  <input
+                    type="checkbox"
+                    checked={monitorVisible.disk_percent}
+                    onChange={(e) =>
+                      updateMonitorVisible({ disk_percent: e.target.checked })
+                    }
+                  />
+                  Диск %
+                </label>
+                <label className="hub__monitor-settings-label">
+                  <input
+                    type="checkbox"
+                    checked={monitorVisible.disk_gb}
+                    onChange={(e) =>
+                      updateMonitorVisible({ disk_gb: e.target.checked })
+                    }
+                  />
+                  Диск ГБ
+                </label>
+                <label className="hub__monitor-settings-label">
+                  <input
+                    type="checkbox"
+                    checked={monitorVisible.uptime}
+                    onChange={(e) =>
+                      updateMonitorVisible({ uptime: e.target.checked })
+                    }
+                  />
+                  Аптайм
+                </label>
+                <label className="hub__monitor-settings-label">
+                  <input
+                    type="checkbox"
+                    checked={monitorVisible.process_count}
+                    onChange={(e) =>
+                      updateMonitorVisible({ process_count: e.target.checked })
+                    }
+                  />
+                  Процессы
+                </label>
+                <label className="hub__monitor-settings-label">
+                  <input
+                    type="checkbox"
+                    checked={monitorVisible.download_speed}
+                    onChange={(e) =>
+                      updateMonitorVisible({
+                        download_speed: e.target.checked,
+                      })
+                    }
+                  />
+                  Скорость ↓
+                </label>
+                <label className="hub__monitor-settings-label">
+                  <input
+                    type="checkbox"
+                    checked={monitorVisible.upload_speed}
+                    onChange={(e) =>
+                      updateMonitorVisible({ upload_speed: e.target.checked })
+                    }
+                  />
+                  Скорость ↑
+                </label>
+                <label className="hub__monitor-settings-label">
+                  <input
+                    type="checkbox"
+                    checked={monitorVisible.total_download}
+                    onChange={(e) =>
+                      updateMonitorVisible({
+                        total_download: e.target.checked,
+                      })
+                    }
+                  />
+                  Всего ↓
+                </label>
+                <label className="hub__monitor-settings-label">
+                  <input
+                    type="checkbox"
+                    checked={monitorVisible.total_upload}
+                    onChange={(e) =>
+                      updateMonitorVisible({ total_upload: e.target.checked })
+                    }
+                  />
+                  Всего ↑
+                </label>
+              </div>
+            </details>
             <input
               ref={addModuleInputRef}
               type="file"
@@ -298,44 +535,125 @@ function App() {
                         </p>
                       ) : null}
                       <div className="hub__net-widget-metrics">
-                        <div className="hub__net-widget-metric">
-                          <span className="hub__net-widget-label">↓</span>
-                          <DataText size="base">
-                            {formatSpeed(
-                              module.payload.downloadSpeed ?? 0,
-                            )}
-                          </DataText>
-                        </div>
-                        <div className="hub__net-widget-metric">
-                          <span className="hub__net-widget-label">↑</span>
-                          <DataText size="base">
-                            {formatSpeed(
-                              module.payload.uploadSpeed ?? 0,
-                            )}
-                          </DataText>
-                        </div>
-                        <div className="hub__net-widget-metric">
-                          <span className="hub__net-widget-label">Всего ↓</span>
-                          <DataText size="sm">
-                            {formatBytes(
-                              module.payload.totalDownload ?? 0,
-                            )}
-                          </DataText>
-                        </div>
-                        <div className="hub__net-widget-metric">
-                          <span className="hub__net-widget-label">Всего ↑</span>
-                          <DataText size="sm">
-                            {formatBytes(
-                              module.payload.totalUpload ?? 0,
-                            )}
-                          </DataText>
-                        </div>
+                        {monitorVisible.download_speed ? (
+                          <div className="hub__net-widget-metric">
+                            <span className="hub__net-widget-label">↓</span>
+                            <DataText size="base">
+                              {formatSpeed(
+                                module.payload.downloadSpeed ?? 0,
+                              )}
+                            </DataText>
+                          </div>
+                        ) : null}
+                        {monitorVisible.upload_speed ? (
+                          <div className="hub__net-widget-metric">
+                            <span className="hub__net-widget-label">↑</span>
+                            <DataText size="base">
+                              {formatSpeed(
+                                module.payload.uploadSpeed ?? 0,
+                              )}
+                            </DataText>
+                          </div>
+                        ) : null}
+                        {monitorVisible.total_download ? (
+                          <div className="hub__net-widget-metric">
+                            <span className="hub__net-widget-label">Всего ↓</span>
+                            <DataText size="sm">
+                              {formatBytes(
+                                module.payload.totalDownload ?? 0,
+                              )}
+                            </DataText>
+                          </div>
+                        ) : null}
+                        {monitorVisible.total_upload ? (
+                          <div className="hub__net-widget-metric">
+                            <span className="hub__net-widget-label">Всего ↑</span>
+                            <DataText size="sm">
+                              {formatBytes(
+                                module.payload.totalUpload ?? 0,
+                              )}
+                            </DataText>
+                          </div>
+                        ) : null}
                       </div>
+                    </div>
+                  ) : isEyePayload(module.payload) ? (
+                    <div className="hub__eye-widget">
+                      {(monitorVisible.cpu ||
+                        monitorVisible.memory ||
+                        monitorVisible.memory_mb ||
+                        monitorVisible.disk_percent ||
+                        monitorVisible.disk_gb ||
+                        monitorVisible.uptime ||
+                        monitorVisible.process_count) ? (
+                        <div className="hub__eye-widget-metrics">
+                          {monitorVisible.cpu ? (
+                            <div className="hub__eye-widget-metric">
+                              <span className="hub__eye-widget-label">CPU</span>
+                              <DataText size="base">
+                                {`${(module.payload.cpu_percent ?? 0).toFixed(1)}%`}
+                              </DataText>
+                            </div>
+                          ) : null}
+                          {monitorVisible.memory ? (
+                            <div className="hub__eye-widget-metric">
+                              <span className="hub__eye-widget-label">Память %</span>
+                              <DataText size="base">
+                                {`${(module.payload.memory_percent ?? 0).toFixed(1)}%`}
+                              </DataText>
+                            </div>
+                          ) : null}
+                          {monitorVisible.memory_mb ? (
+                            <div className="hub__eye-widget-metric">
+                              <span className="hub__eye-widget-label">Память</span>
+                              <DataText size="sm">
+                                {`${module.payload.memory_used_mb ?? 0} / ${module.payload.memory_total_mb ?? 0} МБ`}
+                              </DataText>
+                            </div>
+                          ) : null}
+                          {monitorVisible.disk_percent ? (
+                            <div className="hub__eye-widget-metric">
+                              <span className="hub__eye-widget-label">Диск %</span>
+                              <DataText size="base">
+                                {`${(module.payload.disk_percent ?? 0).toFixed(1)}%`}
+                              </DataText>
+                            </div>
+                          ) : null}
+                          {monitorVisible.disk_gb ? (
+                            <div className="hub__eye-widget-metric">
+                              <span className="hub__eye-widget-label">Диск</span>
+                              <DataText size="sm">
+                                {`${module.payload.disk_used_gb ?? 0} / ${module.payload.disk_total_gb ?? 0} ГБ`}
+                              </DataText>
+                            </div>
+                          ) : null}
+                          {monitorVisible.uptime ? (
+                            <div className="hub__eye-widget-metric">
+                              <span className="hub__eye-widget-label">Аптайм</span>
+                              <DataText size="sm">
+                                {formatUptime(module.payload.uptime_sec ?? 0)}
+                              </DataText>
+                            </div>
+                          ) : null}
+                          {monitorVisible.process_count ? (
+                            <div className="hub__eye-widget-metric">
+                              <span className="hub__eye-widget-label">Процессы</span>
+                              <DataText size="sm">
+                                {module.payload.process_count ?? 0}
+                              </DataText>
+                            </div>
+                          ) : null}
+                        </div>
+                      ) : (
+                        <p className="hub__card-no-data">
+                          Включите метрики в «Какие данные показывать»
+                        </p>
+                      )}
                     </div>
                   ) : module.payload != null ? (
                     <details className="hub__card-details">
                       <summary className="hub__card-details-summary">
-                        Данные модуля
+                        Данные модуля (JSON)
                       </summary>
                       <pre className="hub__card-pre">
                         {JSON.stringify(module.payload, null, 2)}

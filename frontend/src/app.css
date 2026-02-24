@@ -201,7 +201,7 @@
 
 .hub__net-widget-metrics {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
   gap: 12px;
 }
 
@@ -214,6 +214,79 @@
 .hub__net-widget-label {
   font-size: 11px;
   color: #475569;
+}
+
+/* Виджет Eye в Hub: CPU, память */
+.hub__eye-widget {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.hub__eye-widget-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+  gap: 12px;
+}
+
+.hub__eye-widget-metric {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.hub__eye-widget-label {
+  font-size: 11px;
+  color: #475569;
+}
+
+/* Настройки: какие метрики показывать */
+.hub__monitor-settings {
+  background: #12121a;
+  border: 1px solid #1e1e2e;
+  border-radius: 8px;
+  padding: 8px 12px;
+}
+
+.hub__monitor-settings-summary {
+  font-size: 12px;
+  color: #94a3b8;
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+
+.hub__monitor-settings-summary::-webkit-details-marker {
+  display: none;
+}
+
+.hub__monitor-settings-grid {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 20px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid #1e1e2e;
+}
+
+.hub__monitor-settings-presets {
+  font-size: 12px;
+  color: #64748b;
+  margin-right: 4px;
+}
+
+.hub__monitor-settings-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #cbd5e1;
+  cursor: pointer;
+}
+
+.hub__monitor-settings-label input {
+  accent-color: #3b82f6;
 }
 
 @media (max-width: 900px) {

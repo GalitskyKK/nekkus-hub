@@ -73,6 +73,18 @@
   gap: 16px;
 }
 
+.hub__empty-state {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding: 24px;
+  text-align: center;
+  font-size: 14px;
+  color: #94a3b8;
+  background: #12121a;
+  border: 1px dashed #1e1e2e;
+  border-radius: 8px;
+}
+
 .hub__card {
   display: flex;
   flex-direction: column;

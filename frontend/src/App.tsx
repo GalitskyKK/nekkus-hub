@@ -331,6 +331,11 @@ function App() {
 
         <Section title="" className="hub__grid-wrap">
           <div className="hub__grid">
+            {modules.length === 0 ? (
+              <p className="hub__empty-state">
+                Нет модулей. Добавьте модуль (кнопка выше) или нажмите «Пересканировать».
+              </p>
+            ) : null}
             {modules.map((module) => {
               const moduleVisible = getModuleVisible(
                 module.manifest.id,

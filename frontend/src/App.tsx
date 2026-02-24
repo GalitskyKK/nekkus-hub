@@ -19,15 +19,20 @@ import {
 import type {
   ModuleSummary,
   MonitorVisibleSettings,
+  ModuleCardSize,
 } from "./types";
 import {
   DEFAULT_MONITOR_VISIBLE,
   getModuleVisible,
   loadMonitorVisibleByModule,
+  loadModuleOrder,
+  loadModuleSizes,
   PRESET_EXTENDED,
   PRESET_NETWORK,
   PRESET_STANDARD,
   saveMonitorVisibleByModule,
+  saveModuleOrder,
+  saveModuleSizes,
 } from "./types";
 
 /** Payload от Net /api/status для виджета в Hub */
@@ -89,6 +94,28 @@ function isEyePayload(payload: unknown): payload is EyeStatsPayload {
   );
 }
 
+/** Опции конфига и пресеты по типу модуля (Net — только сеть, Eye — метрики + GPU). */
+const EYE_CONFIG_KEYS: ReadonlyArray<[keyof MonitorVisibleSettings, string]> = [
+  ["cpu", "CPU"],
+  ["memory", "Память %"],
+  ["memory_mb", "Память МБ"],
+  ["disk_percent", "Диск %"],
+  ["disk_gb", "Диск ГБ"],
+  ["uptime", "Аптайм"],
+  ["process_count", "Процессы"],
+  ["gpu", "GPU"],
+];
+const NET_CONFIG_KEYS: ReadonlyArray<[keyof MonitorVisibleSettings, string]> = [
+  ["download_speed", "Скорость ↓"],
+  ["upload_speed", "Скорость ↑"],
+  ["total_download", "Всего ↓"],
+  ["total_upload", "Всего ↑"],
+];
+
+function isNetModule(moduleId: string): boolean {
+  return moduleId.includes("net") || moduleId === "net";
+}
+
 function App() {
   const [modules, setModules] = useState<ModuleSummary[]>([]);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -99,7 +126,31 @@ function App() {
   const [configOpenModuleId, setConfigOpenModuleId] = useState<string | null>(
     null,
   );
+  const [moduleOrder, setModuleOrderState] = useState<string[]>(loadModuleOrder);
+  const [moduleSizes, setModuleSizesState] = useState<Record<string, ModuleCardSize>>(
+    loadModuleSizes,
+  );
+  const [draggedId, setDraggedId] = useState<string | null>(null);
   const addModuleInputRef = useRef<HTMLInputElement>(null);
+
+  const setModuleOrder = useCallback((next: string[] | ((prev: string[]) => string[])) => {
+    setModuleOrderState((prev) => {
+      const order = typeof next === "function" ? next(prev) : next;
+      saveModuleOrder(order);
+      return order;
+    });
+  }, []);
+
+  const setModuleSizes = useCallback(
+    (patch: Record<string, ModuleCardSize> | ((prev: Record<string, ModuleCardSize>) => Record<string, ModuleCardSize>)) => {
+      setModuleSizesState((prev) => {
+        const next = typeof patch === "function" ? patch(prev) : { ...prev, ...patch };
+        saveModuleSizes(next);
+        return next;
+      });
+    },
+    [],
+  );
 
   const updateModuleVisible = useCallback(
     (moduleId: string, patch: Partial<MonitorVisibleSettings>) => {
@@ -133,6 +184,69 @@ function App() {
   const withErrors = useMemo(
     () => modules.filter((m) => m.error).length,
     [modules],
+  );
+
+  const orderedModules = useMemo(() => {
+    const byId = new Map(modules.map((m) => [m.manifest.id, m]));
+    const seen = new Set<string>();
+    const result: ModuleSummary[] = [];
+    for (const id of moduleOrder) {
+      const m = byId.get(id);
+      if (m) {
+        result.push(m);
+        seen.add(id);
+      }
+    }
+    for (const m of modules) {
+      if (!seen.has(m.manifest.id)) result.push(m);
+    }
+    return result;
+  }, [modules, moduleOrder]);
+
+  const getCardSize = useCallback(
+    (moduleId: string): ModuleCardSize => moduleSizes[moduleId] ?? "medium",
+    [moduleSizes],
+  );
+
+  const handleDragStart = useCallback(
+    (e: React.DragEvent, moduleId: string) => {
+      setDraggedId(moduleId);
+      e.dataTransfer.setData("text/plain", moduleId);
+      e.dataTransfer.effectAllowed = "move";
+    },
+    [],
+  );
+
+  const handleDragEnd = useCallback(() => {
+    setDraggedId(null);
+  }, []);
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+  }, []);
+
+  const handleDrop = useCallback(
+    (e: React.DragEvent, targetId: string) => {
+      e.preventDefault();
+      const sourceId = e.dataTransfer.getData("text/plain");
+      if (!sourceId || sourceId === targetId) return;
+      setModuleOrder((prev) => {
+        const idx = prev.indexOf(sourceId);
+        if (idx === -1) {
+          const next = [...prev];
+          const t = next.indexOf(targetId);
+          next.splice(t < 0 ? next.length : t, 0, sourceId);
+          return next;
+        }
+        const next = prev.filter((id) => id !== sourceId);
+        const newTargetIdx = next.indexOf(targetId);
+        next.splice(newTargetIdx < 0 ? next.length : newTargetIdx, 0, sourceId);
+        return next;
+      });
+      setDraggedId(null);
+    },
+    [setModuleOrder],
   );
 
   const loadSummary = useCallback(async () => {
@@ -295,18 +409,14 @@ function App() {
               <strong>{withErrors}</strong>
             </div>
             <Button
-              variant="primary"
+              variant="ghost"
+              size="sm"
               onClick={handleRescan}
               disabled={isBusy}
+              className="hub__scan-compact"
+              title="Пересканировать модули"
             >
-              Пересканировать
-            </Button>
-            <Button
-              variant="secondary"
-              onClick={handleAddModuleClick}
-              disabled={isBusy}
-            >
-              Добавить модуль
+              🔄
             </Button>
             <input
               ref={addModuleInputRef}
@@ -331,25 +441,35 @@ function App() {
 
         <Section title="" className="hub__grid-wrap">
           <div className="hub__grid">
-            {modules.length === 0 ? (
+            {orderedModules.length === 0 ? (
               <p className="hub__empty-state">
-                Нет модулей. Добавьте модуль (кнопка выше) или нажмите «Пересканировать».
+                Нет модулей. Нажмите на блок «+» ниже или кнопку обновления выше.
               </p>
             ) : null}
-            {modules.map((module) => {
+            {orderedModules.map((module) => {
               const moduleVisible = getModuleVisible(
                 module.manifest.id,
                 monitorVisibleByModule,
               );
+              const cardSize = getCardSize(module.manifest.id);
+              const isDragging = draggedId === module.manifest.id;
               return (
               <Card
                 key={module.manifest.id}
                 title=""
                 accentTop={module.running}
-                className="hub__card"
+                className={`hub__card hub__card--${cardSize} ${isDragging ? "hub__card--dragging" : ""}`}
+                onDragOver={handleDragOver}
+                onDrop={(e) => handleDrop(e, module.manifest.id)}
               >
                 <header className="hub__card-header">
-                  <div>
+                  <div
+                    className="hub__card-header-drag hub__card--drag-handle"
+                    draggable
+                    onDragStart={(e) => handleDragStart(e, module.manifest.id)}
+                    onDragEnd={handleDragEnd}
+                    title="Перетащите для смены порядка"
+                  >
                     <h2 className="hub__card-title">
                       {module.manifest.name || module.manifest.id}
                     </h2>
@@ -358,14 +478,29 @@ function App() {
                     </p>
                   </div>
                   <div className="hub__card-header-actions">
+                    <span className="hub__card-size-btns" onClick={(e) => e.stopPropagation()}>
+                      {(["small", "medium", "large"] as const).map((s) => (
+                        <button
+                          key={s}
+                          type="button"
+                          className={`hub__card-size-btn ${cardSize === s ? "hub__card-size-btn--active" : ""}`}
+                          onClick={() => setModuleSizes({ [module.manifest.id]: s })}
+                          title={s === "small" ? "Маленький" : s === "medium" ? "Средний" : "Большой"}
+                          aria-pressed={cardSize === s}
+                        >
+                          {s === "small" ? "S" : s === "medium" ? "M" : "L"}
+                        </button>
+                      ))}
+                    </span>
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() =>
+                      onClick={(e) => {
+                        e.stopPropagation();
                         setConfigOpenModuleId((id) =>
                           id === module.manifest.id ? null : module.manifest.id,
-                        )
-                      }
+                        );
+                      }}
                       aria-expanded={configOpenModuleId === module.manifest.id}
                       aria-haspopup="true"
                       title="Что показывать в виджете"
@@ -379,87 +514,64 @@ function App() {
                 </header>
                 {configOpenModuleId === module.manifest.id ? (
                   <div className="hub__card-config" role="dialog" aria-label="Настройки отображения">
-                    <p className="hub__card-config-title">Что показывать</p>
+                    <p className="hub__card-config-title">
+                      {isNetModule(module.manifest.id) ? "Сетевые метрики" : "Метрики мониторинга"}
+                    </p>
                     <div className="hub__card-config-presets">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() =>
-                          applyPresetForModule(
-                            module.manifest.id,
-                            PRESET_STANDARD,
-                          )
-                        }
-                      >
-                        Стандарт
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() =>
-                          applyPresetForModule(
-                            module.manifest.id,
-                            PRESET_EXTENDED,
-                          )
-                        }
-                      >
-                        Расширенный
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() =>
-                          applyPresetForModule(
-                            module.manifest.id,
-                            PRESET_NETWORK,
-                          )
-                        }
-                      >
-                        Сеть
-                      </Button>
+                      {isNetModule(module.manifest.id) ? (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() =>
+                            applyPresetForModule(module.manifest.id, PRESET_NETWORK)
+                          }
+                        >
+                          Сеть
+                        </Button>
+                      ) : (
+                        <>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() =>
+                              applyPresetForModule(module.manifest.id, PRESET_STANDARD)
+                            }
+                          >
+                            Стандарт
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() =>
+                              applyPresetForModule(module.manifest.id, PRESET_EXTENDED)
+                            }
+                          >
+                            Расширенный
+                          </Button>
+                        </>
+                      )}
                     </div>
                     <div className="hub__card-config-grid">
-                      {(
-                        [
-                          ["cpu", "CPU"],
-                          ["memory", "Память %"],
-                          ["memory_mb", "Память МБ"],
-                          ["disk_percent", "Диск %"],
-                          ["disk_gb", "Диск ГБ"],
-                          ["uptime", "Аптайм"],
-                          ["process_count", "Процессы"],
-                          ["download_speed", "Скорость ↓"],
-                          ["upload_speed", "Скорость ↑"],
-                          ["total_download", "Всего ↓"],
-                          ["total_upload", "Всего ↑"],
-                        ] as const
-                      ).map(([key, label]) => {
-                        const visible = getModuleVisible(
-                          module.manifest.id,
-                          monitorVisibleByModule,
-                        );
-                        return (
-                          <label
-                            key={key}
-                            className="hub__monitor-settings-label"
-                          >
-                            <input
-                              type="checkbox"
-                              checked={
-                                visible[
-                                  key as keyof MonitorVisibleSettings
-                                ] ?? false
-                              }
-                              onChange={(e) =>
-                                updateModuleVisible(module.manifest.id, {
-                                  [key]: e.target.checked,
-                                })
-                              }
-                            />
-                            {label}
-                          </label>
-                        );
-                      })}
+                      {(isNetModule(module.manifest.id) ? NET_CONFIG_KEYS : EYE_CONFIG_KEYS).map(
+                        ([key, label]) => {
+                          const visible = getModuleVisible(
+                            module.manifest.id,
+                            monitorVisibleByModule,
+                          );
+                          return (
+                            <label key={key} className="hub__monitor-settings-label">
+                              <input
+                                type="checkbox"
+                                checked={visible[key] ?? false}
+                                onChange={(e) =>
+                                  updateModuleVisible(module.manifest.id, { [key]: e.target.checked })
+                                }
+                              />
+                              {label}
+                            </label>
+                          );
+                        },
+                      )}
                     </div>
                   </div>
                 ) : null}
@@ -541,9 +653,10 @@ function App() {
                         moduleVisible.disk_gb ||
                         moduleVisible.uptime ||
                         moduleVisible.process_count ||
-                        module.payload.gpu_percent != null ||
-                        (module.payload.gpu_name != null && module.payload.gpu_name !== "") ||
-                        module.payload.gpu_temp_c != null) ? (
+                        (moduleVisible.gpu &&
+                          (module.payload.gpu_percent != null ||
+                            (module.payload.gpu_name != null && module.payload.gpu_name !== "") ||
+                            module.payload.gpu_temp_c != null))) ? (
                         <div className="hub__eye-widget-metrics">
                           {moduleVisible.cpu ? (
                             <div className="hub__eye-widget-metric">
@@ -601,7 +714,8 @@ function App() {
                               </DataText>
                             </div>
                           ) : null}
-                          {(module.payload.gpu_percent != null || (module.payload.gpu_name != null && module.payload.gpu_name !== "") || module.payload.gpu_temp_c != null) ? (
+                          {moduleVisible.gpu &&
+                          (module.payload.gpu_percent != null || (module.payload.gpu_name != null && module.payload.gpu_name !== "") || module.payload.gpu_temp_c != null) ? (
                             <div className="hub__eye-widget-metric">
                               <span className="hub__eye-widget-label">GPU</span>
                               <DataText size="sm">
@@ -675,6 +789,16 @@ function App() {
               </Card>
               );
             })}
+            <button
+              type="button"
+              className={`hub__add-placeholder ${orderedModules.length === 0 ? "hub__add-placeholder--empty" : ""}`}
+              onClick={handleAddModuleClick}
+              disabled={isBusy}
+              title="Добавить модуль (папка с manifest.json)"
+            >
+              <span className="hub__add-placeholder-icon" aria-hidden>+</span>
+              <span>Добавить модуль</span>
+            </button>
           </div>
         </Section>
       </div>

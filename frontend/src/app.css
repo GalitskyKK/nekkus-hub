@@ -69,8 +69,84 @@
 
 .hub__grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  grid-template-columns: repeat(6, 1fr);
   gap: 16px;
+  align-items: start;
+}
+
+.hub__card--small {
+  grid-column: span 1;
+}
+
+.hub__card--medium {
+  grid-column: span 2;
+}
+
+.hub__card--large {
+  grid-column: span 3;
+}
+
+@media (max-width: 900px) {
+  .hub__grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .hub__card--small,
+  .hub__card--medium,
+  .hub__card--large {
+    grid-column: span 1;
+  }
+}
+
+.hub__card--dragging {
+  opacity: 0.6;
+}
+
+.hub__card--drag-handle {
+  cursor: grab;
+  touch-action: none;
+}
+
+.hub__card--drag-handle:active {
+  cursor: grabbing;
+}
+
+.hub__add-placeholder {
+  grid-column: span 1;
+  min-height: 160px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: transparent;
+  border: 2px dashed #334155;
+  border-radius: 12px;
+  color: #64748b;
+  font-size: 14px;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+}
+
+.hub__add-placeholder:hover {
+  border-color: #3b82f6;
+  color: #94a3b8;
+  background: rgba(59, 130, 246, 0.06);
+}
+
+.hub__add-placeholder--empty {
+  grid-column: span 6;
+  min-height: 200px;
+}
+
+@media (max-width: 900px) {
+  .hub__add-placeholder--empty {
+    grid-column: span 2;
+  }
+}
+
+.hub__add-placeholder-icon {
+  font-size: 32px;
+  line-height: 1;
 }
 
 .hub__empty-state {
@@ -85,6 +161,12 @@
   border-radius: 8px;
 }
 
+.hub__scan-compact {
+  padding: 6px 10px;
+  font-size: 12px;
+  min-height: auto;
+}
+
 .hub__card {
   display: flex;
   flex-direction: column;
@@ -97,10 +179,56 @@
   gap: 12px;
 }
 
+.hub__card-header-drag {
+  flex: 1;
+  min-width: 0;
+}
+
+.hub__card-header-drag::before {
+  content: "⋮⋮";
+  font-size: 14px;
+  letter-spacing: -2px;
+  color: #475569;
+  margin-right: 6px;
+  vertical-align: middle;
+}
+
 .hub__card-header-actions {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-wrap: wrap;
+}
+
+.hub__card-size-btns {
+  display: inline-flex;
+  border: 1px solid #334155;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.hub__card-size-btn {
+  padding: 2px 6px;
+  font-size: 11px;
+  font-weight: 600;
+  background: #12121a;
+  border: none;
+  border-right: 1px solid #334155;
+  color: #64748b;
+  cursor: pointer;
+}
+
+.hub__card-size-btn:last-child {
+  border-right: none;
+}
+
+.hub__card-size-btn:hover {
+  color: #94a3b8;
+}
+
+.hub__card-size-btn--active {
+  background: #1e293b;
+  color: #3b82f6;
 }
 
 .hub__card-config {

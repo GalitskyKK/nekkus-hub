@@ -32,6 +32,7 @@ export type MonitorVisibleSettings = {
   disk_gb: boolean
   uptime: boolean
   process_count: boolean
+  gpu: boolean
   download_speed: boolean
   upload_speed: boolean
   total_download: boolean
@@ -46,6 +47,7 @@ export const DEFAULT_MONITOR_VISIBLE: MonitorVisibleSettings = {
   disk_gb: true,
   uptime: true,
   process_count: false,
+  gpu: true,
   download_speed: true,
   upload_speed: true,
   total_download: true,
@@ -62,13 +64,14 @@ export const PRESET_STANDARD: MonitorVisibleSettings = {
   disk_gb: false,
   uptime: false,
   process_count: false,
+  gpu: false,
   download_speed: false,
   upload_speed: false,
   total_download: false,
   total_upload: false,
 }
 
-/** Пресет: стандарт + диск, аптайм, процессы. */
+/** Пресет: стандарт + диск, аптайм, процессы, GPU. */
 export const PRESET_EXTENDED: MonitorVisibleSettings = {
   ...DEFAULT_MONITOR_VISIBLE,
   cpu: true,
@@ -78,6 +81,7 @@ export const PRESET_EXTENDED: MonitorVisibleSettings = {
   disk_gb: true,
   uptime: true,
   process_count: true,
+  gpu: true,
   download_speed: false,
   upload_speed: false,
   total_download: false,
@@ -94,6 +98,7 @@ export const PRESET_NETWORK: MonitorVisibleSettings = {
   disk_gb: false,
   uptime: false,
   process_count: false,
+  gpu: false,
   download_speed: true,
   upload_speed: true,
   total_download: true,
@@ -127,4 +132,46 @@ export function getModuleVisible(
   byModule: Record<string, MonitorVisibleSettings>,
 ): MonitorVisibleSettings {
   return byModule[moduleId] ?? DEFAULT_MONITOR_VISIBLE;
+}
+
+/** Размер карточки модуля в сетке: 1, 2 или 3 колонки. */
+export type ModuleCardSize = "small" | "medium" | "large";
+
+const STORAGE_KEY_ORDER = "hub_module_order";
+const STORAGE_KEY_SIZES = "hub_module_sizes";
+
+export function loadModuleOrder(): string[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_ORDER);
+    if (!raw) return [];
+    return JSON.parse(raw) as string[];
+  } catch {
+    return [];
+  }
+}
+
+export function saveModuleOrder(order: string[]): void {
+  try {
+    localStorage.setItem(STORAGE_KEY_ORDER, JSON.stringify(order));
+  } catch {
+    // ignore
+  }
+}
+
+export function loadModuleSizes(): Record<string, ModuleCardSize> {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_SIZES);
+    if (!raw) return {};
+    return JSON.parse(raw) as Record<string, ModuleCardSize>;
+  } catch {
+    return {};
+  }
+}
+
+export function saveModuleSizes(sizes: Record<string, ModuleCardSize>): void {
+  try {
+    localStorage.setItem(STORAGE_KEY_SIZES, JSON.stringify(sizes));
+  } catch {
+    // ignore
+  }
 }

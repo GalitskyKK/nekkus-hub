@@ -10,6 +10,7 @@ import {
   ModuleCardGrid,
   PageLayout,
   Pill,
+  ProgressBar,
   Section,
   StatusDot,
 } from "@nekkus/ui-kit";
@@ -49,9 +50,14 @@ type NetStatusPayload = {
   totalUpload?: number;
 };
 
+/** Элемент top_processes от Eye */
+type EyeTopProcess = { name?: string; cpu_percent?: number };
+
 /** Payload от Eye /api/stats для виджета в Hub */
 type EyeStatsPayload = {
   cpu_percent?: number;
+  cpu_temp_c?: number;
+  cpu_mhz?: number;
   memory_percent?: number;
   memory_used_mb?: number;
   memory_total_mb?: number;
@@ -64,6 +70,7 @@ type EyeStatsPayload = {
   uptime_sec?: number;
   process_count?: number;
   timestamp?: number;
+  top_processes?: EyeTopProcess[];
 };
 
 function formatBytes(bytes: number): string {
@@ -95,6 +102,24 @@ function isEyePayload(payload: unknown): payload is EyeStatsPayload {
     payload != null &&
     typeof payload === "object" &&
     ("cpu_percent" in payload || "memory_percent" in payload)
+  );
+}
+
+/** Payload от Gate /api/stats для виджета в Hub */
+type GateStatsPayload = {
+  total_queries?: number;
+  blocked_today?: number;
+  blocked_total?: number;
+  blocked_percent?: number;
+  blocklist_count?: number;
+  timestamp?: number;
+};
+
+function isGatePayload(payload: unknown): payload is GateStatsPayload {
+  return (
+    payload != null &&
+    typeof payload === "object" &&
+    ("total_queries" in payload || "blocked_today" in payload)
   );
 }
 
@@ -780,8 +805,10 @@ function App() {
                       );
                     })()
                   ) : isEyePayload(module.payload) ? (
-                    <div className="hub__eye-widget">
-                      {(moduleVisible.cpu ||
+                    (() => {
+                      const eyePayload = module.payload as EyeStatsPayload;
+                      const hasAnyMetric =
+                        moduleVisible.cpu ||
                         moduleVisible.memory ||
                         moduleVisible.memory_mb ||
                         moduleVisible.disk_percent ||
@@ -789,47 +816,65 @@ function App() {
                         moduleVisible.uptime ||
                         moduleVisible.process_count ||
                         (moduleVisible.gpu &&
-                          (module.payload.gpu_percent != null ||
-                            (module.payload.gpu_name != null && module.payload.gpu_name !== "") ||
-                            module.payload.gpu_temp_c != null))) ? (
+                          (eyePayload.gpu_percent != null ||
+                            (eyePayload.gpu_name != null && eyePayload.gpu_name !== "") ||
+                            eyePayload.gpu_temp_c != null));
+                      return (
+                    <div className="hub__eye-widget">
+                      {hasAnyMetric ? (
                         <div className="hub__eye-widget-metrics">
                           {moduleVisible.cpu ? (
-                            <div className="hub__eye-widget-metric">
-                              <span className="hub__eye-widget-label">CPU</span>
-                              <DataText size="base">
-                                {`${(module.payload.cpu_percent ?? 0).toFixed(1)}%`}
-                              </DataText>
-                            </div>
+                            <ProgressBar
+                              label="CPU"
+                              value={eyePayload.cpu_percent ?? 0}
+                              extra={
+                                eyePayload.cpu_temp_c != null && eyePayload.cpu_temp_c > 0
+                                  ? `${eyePayload.cpu_temp_c}°C`
+                                  : eyePayload.cpu_mhz != null && eyePayload.cpu_mhz > 0
+                                    ? `${(eyePayload.cpu_mhz / 1000).toFixed(1)} GHz`
+                                    : undefined
+                              }
+                              height={6}
+                              className="hub__eye-widget-bar"
+                            />
                           ) : null}
                           {moduleVisible.memory ? (
-                            <div className="hub__eye-widget-metric">
-                              <span className="hub__eye-widget-label">Память %</span>
-                              <DataText size="base">
-                                {`${(module.payload.memory_percent ?? 0).toFixed(1)}%`}
-                              </DataText>
-                            </div>
-                          ) : null}
-                          {moduleVisible.memory_mb ? (
+                            <ProgressBar
+                              label="RAM"
+                              value={eyePayload.memory_percent ?? 0}
+                              extra={
+                                moduleVisible.memory_mb && eyePayload.memory_used_mb != null && eyePayload.memory_total_mb != null
+                                  ? `${eyePayload.memory_used_mb} / ${eyePayload.memory_total_mb} МБ`
+                                  : undefined
+                              }
+                              height={6}
+                              className="hub__eye-widget-bar"
+                            />
+                          ) : moduleVisible.memory_mb ? (
                             <div className="hub__eye-widget-metric">
                               <span className="hub__eye-widget-label">Память</span>
                               <DataText size="sm">
-                                {`${module.payload.memory_used_mb ?? 0} / ${module.payload.memory_total_mb ?? 0} МБ`}
+                                {`${eyePayload.memory_used_mb ?? 0} / ${eyePayload.memory_total_mb ?? 0} МБ`}
                               </DataText>
                             </div>
                           ) : null}
                           {moduleVisible.disk_percent ? (
-                            <div className="hub__eye-widget-metric">
-                              <span className="hub__eye-widget-label">Диск %</span>
-                              <DataText size="base">
-                                {`${(module.payload.disk_percent ?? 0).toFixed(1)}%`}
-                              </DataText>
-                            </div>
-                          ) : null}
-                          {moduleVisible.disk_gb ? (
+                            <ProgressBar
+                              label="Диск"
+                              value={eyePayload.disk_percent ?? 0}
+                              extra={
+                                moduleVisible.disk_gb && eyePayload.disk_used_gb != null && eyePayload.disk_total_gb != null
+                                  ? `${eyePayload.disk_used_gb} / ${eyePayload.disk_total_gb} ГБ`
+                                  : undefined
+                              }
+                              height={6}
+                              className="hub__eye-widget-bar"
+                            />
+                          ) : moduleVisible.disk_gb ? (
                             <div className="hub__eye-widget-metric">
                               <span className="hub__eye-widget-label">Диск</span>
                               <DataText size="sm">
-                                {`${module.payload.disk_used_gb ?? 0} / ${module.payload.disk_total_gb ?? 0} ГБ`}
+                                {`${eyePayload.disk_used_gb ?? 0} / ${eyePayload.disk_total_gb ?? 0} ГБ`}
                               </DataText>
                             </div>
                           ) : null}
@@ -837,7 +882,7 @@ function App() {
                             <div className="hub__eye-widget-metric">
                               <span className="hub__eye-widget-label">Аптайм</span>
                               <DataText size="sm">
-                                {formatUptime(module.payload.uptime_sec ?? 0)}
+                                {formatUptime(eyePayload.uptime_sec ?? 0)}
                               </DataText>
                             </div>
                           ) : null}
@@ -845,23 +890,33 @@ function App() {
                             <div className="hub__eye-widget-metric">
                               <span className="hub__eye-widget-label">Процессы</span>
                               <DataText size="sm">
-                                {module.payload.process_count ?? 0}
+                                {eyePayload.process_count ?? 0}
                               </DataText>
                             </div>
                           ) : null}
                           {moduleVisible.gpu &&
-                          (module.payload.gpu_percent != null || (module.payload.gpu_name != null && module.payload.gpu_name !== "") || module.payload.gpu_temp_c != null) ? (
-                            <div className="hub__eye-widget-metric">
-                              <span className="hub__eye-widget-label">GPU</span>
-                              <DataText size="sm">
-                                {module.payload.gpu_percent != null
-                                  ? `${module.payload.gpu_percent.toFixed(1)}%`
-                                  : "—"}
-                                {module.payload.gpu_name ? ` · ${module.payload.gpu_name}` : ""}
-                                {module.payload.gpu_temp_c != null && module.payload.gpu_temp_c > 0
-                                  ? ` · ${module.payload.gpu_temp_c} °C`
-                                  : ""}
-                              </DataText>
+                          (eyePayload.gpu_percent != null || (eyePayload.gpu_name != null && eyePayload.gpu_name !== "") || eyePayload.gpu_temp_c != null) ? (
+                            <ProgressBar
+                              label="GPU"
+                              value={eyePayload.gpu_percent ?? 0}
+                              extra={
+                                eyePayload.gpu_temp_c != null && eyePayload.gpu_temp_c > 0
+                                  ? `${eyePayload.gpu_temp_c}°C`
+                                  : eyePayload.gpu_name ?? undefined
+                              }
+                              height={6}
+                              className="hub__eye-widget-bar"
+                            />
+                          ) : null}
+                          {Array.isArray(eyePayload.top_processes) && eyePayload.top_processes.length > 0 ? (
+                            <div className="hub__eye-widget-top">
+                              <span className="hub__eye-widget-top-label">Топ:</span>
+                              <span className="hub__eye-widget-top-list font-mono text-nekkus-sm text-nekkus-text-muted">
+                                {eyePayload.top_processes
+                                  .slice(0, 3)
+                                  .map((p) => `${p.name ?? "?"} ${(p.cpu_percent ?? 0).toFixed(0)}%`)
+                                  .join("  ")}
+                              </span>
                             </div>
                           ) : null}
                         </div>
@@ -871,6 +926,49 @@ function App() {
                         </p>
                       )}
                     </div>
+                      );
+                    })()
+                  ) : isGatePayload(module.payload) ? (
+                    (() => {
+                      const gatePayload = module.payload as GateStatsPayload;
+                      const total = gatePayload.total_queries ?? 0;
+                      const blockedToday = gatePayload.blocked_today ?? 0;
+                      const pct = gatePayload.blocked_percent ?? (total > 0 ? (blockedToday / total) * 100 : 0);
+                      const blocklistCount = gatePayload.blocklist_count ?? 0;
+                      return (
+                    <div className="hub__gate-widget">
+                      <div className="hub__gate-widget-metrics">
+                        <div className="hub__gate-widget-metric">
+                          <span className="hub__gate-widget-label">Заблокировано сегодня</span>
+                          <DataText size="base">{blockedToday.toLocaleString()}</DataText>
+                        </div>
+                        <div className="hub__gate-widget-metric">
+                          <span className="hub__gate-widget-label">Запросов</span>
+                          <DataText size="sm">{total.toLocaleString()}</DataText>
+                        </div>
+                        <div className="hub__gate-widget-metric">
+                          <span className="hub__gate-widget-label">Блокировка</span>
+                          <DataText size="sm">{pct.toFixed(1)}%</DataText>
+                        </div>
+                        <div className="hub__gate-widget-metric">
+                          <span className="hub__gate-widget-label">Доменов в блок-листе</span>
+                          <DataText size="sm">{blocklistCount.toLocaleString()}</DataText>
+                        </div>
+                      </div>
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openModuleUI(module.manifest.id);
+                        }}
+                        disabled={isBusy}
+                      >
+                        Открыть →
+                      </Button>
+                    </div>
+                      );
+                    })()
                   ) : module.payload != null ? (
                     <details className="hub__card-details">
                       <summary className="hub__card-details-summary">

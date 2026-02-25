@@ -197,9 +197,13 @@ body {
 }
 
 .hub__eye-widget-metrics {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
-  gap: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.hub__eye-widget-bar {
+  min-width: 0;
 }
 
 .hub__eye-widget-metric {
@@ -209,6 +213,52 @@ body {
 }
 
 .hub__eye-widget-label {
+  font-size: 11px;
+  color: #475569;
+}
+
+.hub__eye-widget-top {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin-top: 4px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border, #1e1e2e);
+}
+
+.hub__eye-widget-top-label {
+  font-size: 11px;
+  color: #475569;
+  flex-shrink: 0;
+}
+
+.hub__eye-widget-top-list {
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Виджет Gate в Hub: DNS-блокировка */
+.hub__gate-widget {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.hub__gate-widget-metrics {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px 12px;
+}
+
+.hub__gate-widget-metric {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.hub__gate-widget-label {
   font-size: 11px;
   color: #475569;
 }

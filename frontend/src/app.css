@@ -152,6 +152,26 @@ body {
   line-height: 1.4;
 }
 
+.hub__net-widget-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.hub__net-widget-select {
+  flex: 1;
+  min-width: 0;
+  max-width: 220px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--nekkus-border, #334155);
+  background: var(--nekkus-bg, #0f172a);
+  color: var(--nekkus-card, #e2e8f0);
+  font-size: 13px;
+  font-family: "JetBrains Mono", "Fira Code", monospace;
+}
+
 .hub__net-widget-metrics {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));

@@ -16,6 +16,8 @@ import {
 import {
   addModule,
   fetchSummary,
+  netConnect,
+  netDisconnect,
   openModuleUI,
   rescanModules,
   startModule,
@@ -40,6 +42,7 @@ import {
 type NetStatusPayload = {
   connected?: boolean;
   server?: string;
+  servers?: string[];
   downloadSpeed?: number;
   uploadSpeed?: number;
   totalDownload?: number;
@@ -146,6 +149,10 @@ function App() {
     loadModuleSizes,
   );
   const [draggedId, setDraggedId] = useState<string | null>(null);
+  /** Выбранный сервер для Net в Hub (по moduleId), для выпадающего списка. */
+  const [selectedNetServerByModule, setSelectedNetServerByModule] = useState<
+    Record<string, string>
+  >({});
   const addModuleInputRef = useRef<HTMLInputElement>(null);
 
   const setModuleOrder = useCallback((next: string[] | ((prev: string[]) => string[])) => {
@@ -347,6 +354,43 @@ function App() {
       } catch (error) {
         setErrorMessage(
           error instanceof Error ? error.message : "Failed to stop module",
+        );
+      } finally {
+        setIsBusy(false);
+      }
+    },
+    [loadSummary],
+  );
+
+  const handleNetConnect = useCallback(
+    async (moduleId: string, server: string) => {
+      if (!server.trim()) return;
+      try {
+        setIsBusy(true);
+        setErrorMessage(null);
+        await netConnect(moduleId, server.trim());
+        await loadSummary();
+      } catch (error) {
+        setErrorMessage(
+          error instanceof Error ? error.message : "Не удалось подключиться",
+        );
+      } finally {
+        setIsBusy(false);
+      }
+    },
+    [loadSummary],
+  );
+
+  const handleNetDisconnect = useCallback(
+    async (moduleId: string) => {
+      try {
+        setIsBusy(true);
+        setErrorMessage(null);
+        await netDisconnect(moduleId);
+        await loadSummary();
+      } catch (error) {
+        setErrorMessage(
+          error instanceof Error ? error.message : "Не удалось отключиться",
         );
       } finally {
         setIsBusy(false);
@@ -607,24 +651,84 @@ function App() {
                       Ошибка: {module.error}
                     </div>
                   ) : isNetPayload(module.payload) ? (
+                    (() => {
+                      const netPayload = module.payload as NetStatusPayload;
+                      return (
                     <div className="hub__net-widget">
                       <div className="hub__net-widget-status">
                         <StatusDot
-                          status={module.payload.connected ? "online" : "offline"}
+                          status={netPayload.connected ? "online" : "offline"}
                           label={
-                            module.payload.connected
+                            netPayload.connected
                               ? "Подключено"
                               : "Отключено"
                           }
-                          pulse={!!module.payload.connected}
+                          pulse={!!netPayload.connected}
                         />
                         <span className="hub__net-widget-server">
-                          {module.payload.server || "—"}
+                          {netPayload.server || "—"}
                         </span>
                       </div>
-                      {!module.payload.connected ? (
+                      {Array.isArray(netPayload.servers) && netPayload.servers.length > 0 ? (
+                        <div className="hub__net-widget-controls">
+                          <select
+                            className="hub__net-widget-select"
+                            value={
+                              selectedNetServerByModule[module.manifest.id] ??
+                              netPayload.server ??
+                              netPayload.servers[0] ??
+                              ""
+                            }
+                            onChange={(e) =>
+                              setSelectedNetServerByModule((prev) => ({
+                                ...prev,
+                                [module.manifest.id]: e.target.value,
+                              }))
+                            }
+                            disabled={isBusy}
+                            aria-label="Выбор сервера VPN"
+                          >
+                            {netPayload.servers.map((s) => (
+                              <option key={s} value={s}>
+                                {s}
+                              </option>
+                            ))}
+                          </select>
+                          {netPayload.connected ? (
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleNetDisconnect(module.manifest.id);
+                              }}
+                              disabled={isBusy}
+                            >
+                              Отключить
+                            </Button>
+                          ) : (
+                            <Button
+                              variant="primary"
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const server =
+                                  selectedNetServerByModule[module.manifest.id] ??
+                                  netPayload.server ??
+                                  netPayload.servers?.[0] ??
+                                  "";
+                                if (server) handleNetConnect(module.manifest.id, server);
+                              }}
+                              disabled={isBusy}
+                            >
+                              Подключить
+                            </Button>
+                          )}
+                        </div>
+                      ) : null}
+                      {!netPayload.connected && !(netPayload.servers?.length) ? (
                         <p className="hub__net-widget-hint">
-                          Откройте приложение и подключитесь к VPN — здесь появятся скорость и трафик (обновление раз в 3 с).
+                          Выберите подписку по умолчанию в приложении Net — тогда здесь появится список серверов и кнопки подключения.
                         </p>
                       ) : null}
                       <div className="hub__net-widget-metrics">
@@ -633,7 +737,7 @@ function App() {
                             <span className="hub__net-widget-label">↓</span>
                             <DataText size="base">
                               {formatSpeed(
-                                module.payload.downloadSpeed ?? 0,
+                                netPayload.downloadSpeed ?? 0,
                               )}
                             </DataText>
                           </div>
@@ -643,7 +747,7 @@ function App() {
                             <span className="hub__net-widget-label">↑</span>
                             <DataText size="base">
                               {formatSpeed(
-                                module.payload.uploadSpeed ?? 0,
+                                netPayload.uploadSpeed ?? 0,
                               )}
                             </DataText>
                           </div>
@@ -653,7 +757,7 @@ function App() {
                             <span className="hub__net-widget-label">Всего ↓</span>
                             <DataText size="sm">
                               {formatBytes(
-                                module.payload.totalDownload ?? 0,
+                                netPayload.totalDownload ?? 0,
                               )}
                             </DataText>
                           </div>
@@ -663,13 +767,15 @@ function App() {
                             <span className="hub__net-widget-label">Всего ↑</span>
                             <DataText size="sm">
                               {formatBytes(
-                                module.payload.totalUpload ?? 0,
+                                netPayload.totalUpload ?? 0,
                               )}
                             </DataText>
                           </div>
                         ) : null}
                       </div>
                     </div>
+                      );
+                    })()
                   ) : isEyePayload(module.payload) ? (
                     <div className="hub__eye-widget">
                       {(moduleVisible.cpu ||

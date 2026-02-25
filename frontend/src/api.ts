@@ -37,6 +37,19 @@ export const stopModule = (id: string) =>
     method: "POST"
   })
 
+/** Подключиться к VPN-серверу из Hub (модуль Net). */
+export const netConnect = (moduleId: string, server: string) =>
+  request<{ ok: boolean }>(`/api/modules/${encodeURIComponent(moduleId)}/net/connect`, {
+    method: "POST",
+    body: JSON.stringify({ server })
+  })
+
+/** Отключиться от VPN из Hub (модуль Net). */
+export const netDisconnect = (moduleId: string) =>
+  request<{ ok: boolean }>(`/api/modules/${encodeURIComponent(moduleId)}/net/disconnect`, {
+    method: "POST"
+  })
+
 /** Add module from folder: FormData keys = relative paths (e.g. manifest.json, nekkus-net.exe). */
 export async function addModule(formData: FormData): Promise<{ ok: string; module_id: string }> {
   const apiBase = import.meta.env.VITE_API_BASE ?? ""

@@ -1,6 +1,7 @@
 package server
 
 import (
+	"encoding/json"
 	"log"
 	"net/http"
 
@@ -88,6 +89,72 @@ func RegisterRoutes(srv *coreserver.Server, cfg api.ServerConfig) {
 			return
 		}
 		if err := cfg.ProcessManager.StopModule(modManifest); err != nil {
+			api.WriteJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+		api.WriteJSON(w, http.StatusOK, map[string]bool{"ok": true})
+	})
+
+	// Прокси к модулю Net: подключение к выбранному серверу из Hub без открытия Net UI.
+	srv.Mux.HandleFunc("POST /api/modules/{id}/net/connect", func(w http.ResponseWriter, r *http.Request) {
+		moduleID := r.PathValue("id")
+		if moduleID == "" {
+			api.WriteJSON(w, http.StatusNotFound, map[string]string{"error": "invalid module route"})
+			return
+		}
+		modManifest, ok := cfg.Registry.GetManifest(moduleID)
+		if !ok {
+			api.WriteJSON(w, http.StatusNotFound, map[string]string{"error": "module not found"})
+			return
+		}
+		if !cfg.ProcessManager.IsRunning(moduleID) {
+			api.WriteJSON(w, http.StatusBadRequest, map[string]string{"error": "module not running"})
+			return
+		}
+		var body struct {
+			Server string `json:"server"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			api.WriteJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid json"})
+			return
+		}
+		if body.Server == "" {
+			api.WriteJSON(w, http.StatusBadRequest, map[string]string{"error": "server is required"})
+			return
+		}
+		baseURL, err := api.GetModuleBaseURL(modManifest.GrpcAddr)
+		if err != nil {
+			api.WriteJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+			return
+		}
+		if err := api.NetConnect(baseURL, body.Server); err != nil {
+			api.WriteJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+		api.WriteJSON(w, http.StatusOK, map[string]bool{"ok": true})
+	})
+
+	srv.Mux.HandleFunc("POST /api/modules/{id}/net/disconnect", func(w http.ResponseWriter, r *http.Request) {
+		moduleID := r.PathValue("id")
+		if moduleID == "" {
+			api.WriteJSON(w, http.StatusNotFound, map[string]string{"error": "invalid module route"})
+			return
+		}
+		modManifest, ok := cfg.Registry.GetManifest(moduleID)
+		if !ok {
+			api.WriteJSON(w, http.StatusNotFound, map[string]string{"error": "module not found"})
+			return
+		}
+		if !cfg.ProcessManager.IsRunning(moduleID) {
+			api.WriteJSON(w, http.StatusOK, map[string]bool{"ok": true})
+			return
+		}
+		baseURL, err := api.GetModuleBaseURL(modManifest.GrpcAddr)
+		if err != nil {
+			api.WriteJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+			return
+		}
+		if err := api.NetDisconnect(baseURL); err != nil {
 			api.WriteJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 			return
 		}

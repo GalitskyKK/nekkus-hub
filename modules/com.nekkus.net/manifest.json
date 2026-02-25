@@ -1,7 +1,7 @@
 {
   "id": "com.nekkus.net",
   "name": "Nekkus Net",
-  "description": "VPN module (sing-box)",
+  "description": "VPN module",
   "version": "0.1.0",
   "executable": {
     "windows": "nekkus-net.exe",

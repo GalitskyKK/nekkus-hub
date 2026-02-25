@@ -315,6 +315,9 @@ function App() {
         setErrorMessage(null);
         await startModule(id);
         await loadSummary();
+        // Повторный запрос через 2 с: модуль (и VPN в Net) успевает инициализироваться,
+        // карточка не показывает устаревшее «Отключено» до следующего опроса.
+        window.setTimeout(() => void loadSummary(), 2000);
       } catch (error) {
         setErrorMessage(
           error instanceof Error ? error.message : "Failed to start module",
@@ -660,8 +663,8 @@ function App() {
                           status={netPayload.connected ? "online" : "offline"}
                           label={
                             netPayload.connected
-                              ? "Подключено"
-                              : "Отключено"
+                              ? "VPN: Подключено"
+                              : "VPN: Отключено"
                           }
                           pulse={!!netPayload.connected}
                         />

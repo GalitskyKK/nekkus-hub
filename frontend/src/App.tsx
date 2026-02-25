@@ -1,8 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  AddModulePlaceholder,
+  AppShell,
   Button,
-  Card,
   DataText,
+  EmptyState,
+  HeaderStat,
+  ModuleCard,
+  ModuleCardGrid,
   PageLayout,
   Pill,
   Section,
@@ -16,11 +21,7 @@ import {
   startModule,
   stopModule,
 } from "./api";
-import type {
-  ModuleSummary,
-  MonitorVisibleSettings,
-  ModuleCardSize,
-} from "./types";
+import type { ModuleCardSize, ModuleSummary, MonitorVisibleSettings } from "./types";
 import {
   DEFAULT_MONITOR_VISIBLE,
   getModuleVisible,
@@ -114,6 +115,20 @@ const NET_CONFIG_KEYS: ReadonlyArray<[keyof MonitorVisibleSettings, string]> = [
 
 function isNetModule(moduleId: string): boolean {
   return moduleId.includes("net") || moduleId === "net";
+}
+
+/** Тип модуля для обводки карточки (net/eye). */
+function getModuleBorderType(moduleId: string): "net" | "eye" | undefined {
+  if (moduleId.includes("net")) return "net";
+  if (moduleId.includes("eye")) return "eye";
+  return undefined;
+}
+
+/** Название модуля для отображения: без префикса "nekkus ", в верхнем регистре (NET, EYE, HUB). */
+function getModuleDisplayName(manifest: { id: string; name?: string }): string {
+  const raw = (manifest.name || manifest.id || "").trim();
+  const withoutNekkus = raw.replace(/^nekkus\s+/i, "").trim() || raw;
+  return withoutNekkus.toUpperCase();
 }
 
 function App() {
@@ -392,59 +407,53 @@ function App() {
   );
 
   return (
-    <PageLayout>
+    <PageLayout className="nekkus-glass-root">
       <div className="hub">
-        <header className="hub__header">
-          <div>
-            <p className="hub__eyebrow">nekkus hub</p>
-            <h1 className="hub__title">Модули и виджеты</h1>
-          </div>
-          <div className="hub__meta">
-            <div className="hub__stat">
-              <span>Модули</span>
-              <strong>{totalModules}</strong>
-            </div>
-            <div className="hub__stat">
-              <span>Ошибки</span>
-              <strong>{withErrors}</strong>
-            </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleRescan}
-              disabled={isBusy}
-              className="hub__scan-compact"
-              title="Пересканировать модули"
-            >
-              🔄
-            </Button>
-            <input
-              ref={addModuleInputRef}
-              type="file"
-              multiple
-              {...({
-                webkitdirectory: "",
-                directory: "",
-              } as React.InputHTMLAttributes<HTMLInputElement>)}
-              onChange={handleAddModuleFiles}
-              style={{ display: "none" }}
-              aria-hidden
-            />
-          </div>
-        </header>
-
-        {errorMessage ? (
+        <AppShell
+          logo="Nekkus"
+          title="Hub"
+          description="Модули и виджеты в одной панели."
+          meta={
+            <>
+              <HeaderStat label="Модули" value={totalModules} />
+              <HeaderStat label="Ошибки" value={withErrors} />
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleRescan}
+                disabled={isBusy}
+                title="Обновить список модулей"
+                aria-label="Обновить список модулей"
+              >
+                Обновить
+              </Button>
+              <input
+                ref={addModuleInputRef}
+                type="file"
+                multiple
+                {...({
+                  webkitdirectory: "",
+                  directory: "",
+                } as React.InputHTMLAttributes<HTMLInputElement>)}
+                onChange={handleAddModuleFiles}
+                style={{ display: "none" }}
+                aria-hidden
+              />
+            </>
+          }
+        >
+          {errorMessage ? (
           <div className="hub__error" role="alert">
             {errorMessage}
           </div>
         ) : null}
 
         <Section title="" className="hub__grid-wrap">
-          <div className="hub__grid">
+          <ModuleCardGrid>
             {orderedModules.length === 0 ? (
-              <p className="hub__empty-state">
+              <EmptyState>
                 Нет модулей. Нажмите на блок «+» ниже или кнопку обновления выше.
-              </p>
+              </EmptyState>
             ) : null}
             {orderedModules.map((module) => {
               const moduleVisible = getModuleVisible(
@@ -453,45 +462,18 @@ function App() {
               );
               const cardSize = getCardSize(module.manifest.id);
               const isDragging = draggedId === module.manifest.id;
+              const moduleBorderType = getModuleBorderType(module.manifest.id);
               return (
-              <Card
+              <ModuleCard
                 key={module.manifest.id}
-                title=""
-                accentTop={module.running}
-                className={`hub__card hub__card--${cardSize} ${isDragging ? "hub__card--dragging" : ""}`}
-                onDragOver={handleDragOver}
-                onDrop={(e) => handleDrop(e, module.manifest.id)}
-              >
-                <header className="hub__card-header">
-                  <div
-                    className="hub__card-header-drag hub__card--drag-handle"
-                    draggable
-                    onDragStart={(e) => handleDragStart(e, module.manifest.id)}
-                    onDragEnd={handleDragEnd}
-                    title="Перетащите для смены порядка"
-                  >
-                    <h2 className="hub__card-title">
-                      {module.manifest.name || module.manifest.id}
-                    </h2>
-                    <p className="hub__card-desc">
-                      {module.manifest.description || "No description"}
-                    </p>
-                  </div>
-                  <div className="hub__card-header-actions">
-                    <span className="hub__card-size-btns" onClick={(e) => e.stopPropagation()}>
-                      {(["small", "medium", "large"] as const).map((s) => (
-                        <button
-                          key={s}
-                          type="button"
-                          className={`hub__card-size-btn ${cardSize === s ? "hub__card-size-btn--active" : ""}`}
-                          onClick={() => setModuleSizes({ [module.manifest.id]: s })}
-                          title={s === "small" ? "Маленький" : s === "medium" ? "Средний" : "Большой"}
-                          aria-pressed={cardSize === s}
-                        >
-                          {s === "small" ? "S" : s === "medium" ? "M" : "L"}
-                        </button>
-                      ))}
-                    </span>
+                size={cardSize}
+                title={getModuleDisplayName(module.manifest)}
+                description={module.manifest.description || "No description"}
+                module={moduleBorderType}
+                running={module.running}
+                onSizeChange={(s) => setModuleSizes({ [module.manifest.id]: s })}
+                headerActions={
+                  <>
                     <Button
                       variant="ghost"
                       size="sm"
@@ -510,11 +492,12 @@ function App() {
                     <Pill variant="default">
                       {module.manifest.widget?.type || "widget"}
                     </Pill>
-                  </div>
-                </header>
-                {configOpenModuleId === module.manifest.id ? (
-                  <div className="hub__card-config" role="dialog" aria-label="Настройки отображения">
-                    <p className="hub__card-config-title">
+                  </>
+                }
+                configPanel={
+                  configOpenModuleId === module.manifest.id ? (
+                  <>
+                    <p className="nekkus-module-card__config-title">
                       {isNetModule(module.manifest.id) ? "Сетевые метрики" : "Метрики мониторинга"}
                     </p>
                     <div className="hub__card-config-presets">
@@ -573,10 +556,53 @@ function App() {
                         },
                       )}
                     </div>
-                  </div>
-                ) : null}
-                <div className="hub__card-body">
-                  {module.error ? (
+                  </>
+                  ) : undefined}
+                footer={
+                  <>
+                    <span>ID: {module.manifest.id}</span>
+                    <span>gRPC: {module.manifest.grpc_addr || "—"}</span>
+                    <span>Статус: {module.running ? "Запущен" : "Остановлен"}</span>
+                    <div className="hub__card-actions">
+                      {!module.running ? (
+                        <Button
+                          variant="primary"
+                          size="sm"
+                          onClick={() => handleStart(module.manifest.id)}
+                          disabled={isBusy}
+                        >
+                          Запустить
+                        </Button>
+                      ) : null}
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => handleOpenUI(module.manifest.id)}
+                        disabled={isBusy}
+                        title="Открыть приложение в отдельном окне"
+                      >
+                        Открыть
+                      </Button>
+                      {module.running ? (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleStop(module.manifest.id)}
+                          disabled={isBusy}
+                        >
+                          Остановить
+                        </Button>
+                      ) : null}
+                    </div>
+                  </>
+                }
+                onDragStart={(e) => handleDragStart(e, module.manifest.id)}
+                onDragEnd={handleDragEnd}
+                onDragOver={handleDragOver}
+                onDrop={(e) => handleDrop(e, module.manifest.id)}
+                dragging={isDragging}
+              >
+                {module.error ? (
                     <div className="hub__card-error">
                       Ошибка: {module.error}
                     </div>
@@ -598,7 +624,7 @@ function App() {
                       </div>
                       {!module.payload.connected ? (
                         <p className="hub__net-widget-hint">
-                          Откройте UI модуля и подключитесь к VPN — тогда здесь появятся скорость и трафик (обновление раз в 3 с).
+                          Откройте приложение и подключитесь к VPN — здесь появятся скорость и трафик (обновление раз в 3 с).
                         </p>
                       ) : null}
                       <div className="hub__net-widget-metrics">
@@ -748,59 +774,19 @@ function App() {
                   ) : (
                     <p className="hub__card-no-data">Нет данных</p>
                   )}
-                </div>
-                <footer className="hub__card-footer">
-                  <span>ID: {module.manifest.id}</span>
-                  <span>gRPC: {module.manifest.grpc_addr || "—"}</span>
-                  <span>
-                    Статус: {module.running ? "Запущен" : "Остановлен"}
-                  </span>
-                  <div className="hub__card-actions">
-                    {!module.running ? (
-                      <Button
-                        variant="primary"
-                        size="sm"
-                        onClick={() => handleStart(module.manifest.id)}
-                        disabled={isBusy}
-                      >
-                        Запустить
-                      </Button>
-                    ) : null}
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      onClick={() => handleOpenUI(module.manifest.id)}
-                      disabled={isBusy}
-                    >
-                      Открыть UI
-                    </Button>
-                    {module.running ? (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleStop(module.manifest.id)}
-                        disabled={isBusy}
-                      >
-                        Остановить
-                      </Button>
-                    ) : null}
-                  </div>
-                </footer>
-              </Card>
+              </ModuleCard>
               );
             })}
-            <button
-              type="button"
-              className={`hub__add-placeholder ${orderedModules.length === 0 ? "hub__add-placeholder--empty" : ""}`}
-              onClick={handleAddModuleClick}
+            <AddModulePlaceholder
+              empty={orderedModules.length === 0}
               disabled={isBusy}
-              title="Добавить модуль (папка с manifest.json)"
+              onClick={handleAddModuleClick}
             >
-              <span className="hub__add-placeholder-icon" aria-hidden>+</span>
-              <span>Добавить модуль</span>
-            </button>
-          </div>
+              Добавить модуль
+            </AddModulePlaceholder>
+          </ModuleCardGrid>
         </Section>
+        </AppShell>
       </div>
     </PageLayout>
   );

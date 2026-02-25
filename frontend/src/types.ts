@@ -134,7 +134,7 @@ export function getModuleVisible(
   return byModule[moduleId] ?? DEFAULT_MONITOR_VISIBLE;
 }
 
-/** Размер карточки модуля в сетке: 1, 2 или 3 колонки. */
+/** Размер карточки модуля. Совпадает с ModuleCardSize из @nekkus/ui-kit. */
 export type ModuleCardSize = "small" | "medium" | "large";
 
 const STORAGE_KEY_ORDER = "hub_module_order";

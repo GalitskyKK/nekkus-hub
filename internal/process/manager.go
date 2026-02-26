@@ -21,19 +21,27 @@ import (
 
 // Manager manages module process lifecycle.
 type Manager struct {
-	mu        sync.RWMutex
-	processes map[string]*exec.Cmd
+	mu               sync.RWMutex
+	processes        map[string]*exec.Cmd
+	elevatedModules  map[string]string // moduleID -> grpcAddr (Gate, запущенный через runas; нет handle)
 }
 
 // NewManager creates a new process Manager.
 func NewManager() *Manager {
 	return &Manager{
-		processes: make(map[string]*exec.Cmd),
+		processes:       make(map[string]*exec.Cmd),
+		elevatedModules: make(map[string]string),
 	}
 }
 
 // IsRunning reports whether the module is currently running.
 func (m *Manager) IsRunning(moduleID string) bool {
+	m.mu.RLock()
+	grpcAddr, elevated := m.elevatedModules[moduleID]
+	m.mu.RUnlock()
+	if elevated && grpcAddr != "" {
+		return tcpConnectOK(grpcAddr)
+	}
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	cmd := m.processes[moduleID]
@@ -54,6 +62,10 @@ func (m *Manager) StartModule(manifest manifest.ModuleManifest, modulesDir, hubA
 
 	m.mu.RLock()
 	if cmd := m.processes[manifest.ID]; cmd != nil && cmd.Process != nil && (cmd.ProcessState == nil || !cmd.ProcessState.Exited()) {
+		m.mu.RUnlock()
+		return nil
+	}
+	if _, elevated := m.elevatedModules[manifest.ID]; elevated && tcpConnectOK(manifest.GrpcAddr) {
 		m.mu.RUnlock()
 		return nil
 	}
@@ -79,15 +91,29 @@ func (m *Manager) StartModule(manifest manifest.ModuleManifest, modulesDir, hubA
 	)
 
 	moduleDir := filepath.Join(modulesDir, manifest.ID)
+	var workDir string
 	if stat, statErr := os.Stat(moduleDir); statErr == nil && stat.IsDir() {
 		cmd.Dir = moduleDir
+		workDir = moduleDir
 	} else {
 		cmd.Dir = filepath.Dir(exePath)
+		workDir = filepath.Dir(exePath)
 	}
 	cmd.Env = buildModuleEnv(hubAddr, showUI, autoConnect)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	setModuleProcessAttrs(cmd, manifest.ID)
+
+	started, err := tryStartGateElevated(manifest, exePath, dataDir, hubAddr, showUI, autoConnect, workDir)
+	if err != nil {
+		return err
+	}
+	if started {
+		m.mu.Lock()
+		m.elevatedModules[manifest.ID] = manifest.GrpcAddr
+		m.mu.Unlock()
+		return nil
+	}
 
 	if err := cmd.Start(); err != nil {
 		return err
@@ -112,9 +138,27 @@ func (m *Manager) StartModule(manifest manifest.ModuleManifest, modulesDir, hubA
 	return nil
 }
 
+// tcpConnectOK проверяет, доступен ли адрес по TCP (для IsRunning elevated-модулей).
+func tcpConnectOK(addr string) bool {
+	conn, err := net.DialTimeout("tcp", addr, 500*time.Millisecond)
+	if err != nil {
+		return false
+	}
+	_ = conn.Close()
+	return true
+}
+
 // StopModule stops the module process.
 func (m *Manager) StopModule(manifest manifest.ModuleManifest) error {
 	m.mu.Lock()
+	grpcAddr, elevated := m.elevatedModules[manifest.ID]
+	if elevated {
+		delete(m.elevatedModules, manifest.ID)
+		m.mu.Unlock()
+		_ = tryDisconnectModule(manifest.GrpcAddr)
+		time.Sleep(500 * time.Millisecond)
+		return stopProcessByAddr(grpcAddr)
+	}
 	cmd := m.processes[manifest.ID]
 	if cmd == nil || cmd.Process == nil {
 		m.mu.Unlock()

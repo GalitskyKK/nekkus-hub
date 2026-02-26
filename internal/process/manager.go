@@ -87,6 +87,7 @@ func (m *Manager) StartModule(manifest manifest.ModuleManifest, modulesDir, hubA
 	cmd.Env = buildModuleEnv(hubAddr, showUI, autoConnect)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
+	setModuleProcessAttrs(cmd)
 
 	if err := cmd.Start(); err != nil {
 		return err
@@ -170,6 +171,25 @@ func resolveExecutablePath(manifest manifest.ModuleManifest, modulesDir string, 
 		}
 	}
 
+	if manifest.ID == "com.nekkus.gate" || manifest.ID == "gate" {
+		repoBase := filepath.Clean(filepath.Join(modulesDir, "..", "..", "nekkus-gate"))
+		rootCandidate := filepath.Join(repoBase, exeName)
+		if pathutil.FileExists(rootCandidate) {
+			return rootCandidate, nil
+		}
+		buildCandidate := filepath.Join(repoBase, "build", "bin", exeName)
+		if pathutil.FileExists(buildCandidate) {
+			return buildCandidate, nil
+		}
+		binCandidate := filepath.Join(repoBase, "bin", exeName)
+		if pathutil.FileExists(binCandidate) {
+			return binCandidate, nil
+		}
+		if requireRelease {
+			return "", fmt.Errorf("release build not found for %s; run: cd nekkus-gate && go build -o %s ./cmd", manifest.ID, exeName)
+		}
+	}
+
 	return "", fmt.Errorf("executable not found for %s", manifest.ID)
 }
 
@@ -191,14 +211,33 @@ func netModuleDataDir() string {
 }
 
 func resolveModuleDataDir(manifest manifest.ModuleManifest, modulesDir string) string {
-	if manifest.ID == "com.nekkus.net" {
+	switch manifest.ID {
+	case "com.nekkus.net":
 		return netModuleDataDir()
+	case "com.nekkus.gate", "gate":
+		// Тот же каталог, что и при standalone, чтобы блоклист и состояние DNS были общими.
+		return gateModuleDataDir()
 	}
 	dataDir := filepath.Join(modulesDir, manifest.ID, "data")
 	if manifest.Config != nil && manifest.Config.StoragePath != "" {
 		dataDir = filepath.Join(modulesDir, manifest.ID, manifest.Config.StoragePath)
 	}
 	return dataDir
+}
+
+func gateModuleDataDir() string {
+	var base string
+	switch runtime.GOOS {
+	case "windows":
+		base = os.Getenv("APPDATA")
+	case "darwin":
+		base = filepath.Join(os.Getenv("HOME"), "Library", "Application Support")
+	default:
+		base = filepath.Join(os.Getenv("HOME"), ".config")
+	}
+	dir := filepath.Join(base, "nekkus", "gate")
+	_ = os.MkdirAll(dir, 0o755)
+	return dir
 }
 
 func waitForTCP(addr string, timeout time.Duration) error {

@@ -105,13 +105,16 @@ function isEyePayload(payload: unknown): payload is EyeStatsPayload {
   );
 }
 
-/** Payload от Gate /api/stats для виджета в Hub */
+/** Payload от Gate /api/stats для виджета в Hub (stats + privacy по трекерам) */
 type GateStatsPayload = {
   total_queries?: number;
   blocked_today?: number;
   blocked_total?: number;
   blocked_percent?: number;
   blocklist_count?: number;
+  score?: number;
+  tracker_queries?: number;
+  tracker_blocked?: number;
   timestamp?: number;
 };
 
@@ -935,9 +938,18 @@ function App() {
                       const blockedToday = gatePayload.blocked_today ?? 0;
                       const pct = gatePayload.blocked_percent ?? (total > 0 ? (blockedToday / total) * 100 : 0);
                       const blocklistCount = gatePayload.blocklist_count ?? 0;
+                      const score = gatePayload.score ?? null;
+                      const trackerQueries = gatePayload.tracker_queries ?? 0;
+                      const trackerBlocked = gatePayload.tracker_blocked ?? 0;
                       return (
                     <div className="hub__gate-widget">
                       <div className="hub__gate-widget-metrics">
+                        {score != null && (
+                          <div className="hub__gate-widget-metric hub__gate-widget-score">
+                            <span className="hub__gate-widget-label">Privacy Score</span>
+                            <DataText size="base">{score}/100</DataText>
+                          </div>
+                        )}
                         <div className="hub__gate-widget-metric">
                           <span className="hub__gate-widget-label">Заблокировано сегодня</span>
                           <DataText size="base">{blockedToday.toLocaleString()}</DataText>
@@ -947,8 +959,8 @@ function App() {
                           <DataText size="sm">{total.toLocaleString()}</DataText>
                         </div>
                         <div className="hub__gate-widget-metric">
-                          <span className="hub__gate-widget-label">Блокировка</span>
-                          <DataText size="sm">{pct.toFixed(1)}%</DataText>
+                          <span className="hub__gate-widget-label">Трекеров заблок.</span>
+                          <DataText size="sm">{trackerQueries > 0 ? `${trackerBlocked}/${trackerQueries}` : '—'}</DataText>
                         </div>
                         <div className="hub__gate-widget-metric">
                           <span className="hub__gate-widget-label">Доменов в блок-листе</span>

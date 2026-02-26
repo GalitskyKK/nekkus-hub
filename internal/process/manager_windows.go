@@ -7,9 +7,15 @@ import (
 	"syscall"
 )
 
-// setModuleProcessAttrs скрывает окно консоли при запуске модуля из Hub (Windows).
-func setModuleProcessAttrs(cmd *exec.Cmd) {
-	if cmd != nil {
-		cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
+// setModuleProcessAttrs на Windows скрывает консоль дочернего процесса (HideWindow),
+// кроме Gate: для Gate не выставляем флаги, чтобы процесс гарантированно наследовал
+// повышенные права от Hub (иначе смена DNS не срабатывает даже при запуске Hub от админа).
+func setModuleProcessAttrs(cmd *exec.Cmd, moduleID string) {
+	if cmd == nil {
+		return
 	}
+	if moduleID == "com.nekkus.gate" || moduleID == "gate" {
+		return
+	}
+	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
 }

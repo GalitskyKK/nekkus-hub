@@ -87,7 +87,7 @@ func (m *Manager) StartModule(manifest manifest.ModuleManifest, modulesDir, hubA
 	cmd.Env = buildModuleEnv(hubAddr, showUI, autoConnect)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	setModuleProcessAttrs(cmd)
+	setModuleProcessAttrs(cmd, manifest.ID)
 
 	if err := cmd.Start(); err != nil {
 		return err

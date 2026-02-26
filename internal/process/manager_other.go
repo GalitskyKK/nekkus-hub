@@ -4,4 +4,4 @@ package process
 
 import "os/exec"
 
-func setModuleProcessAttrs(cmd *exec.Cmd) {}
+func setModuleProcessAttrs(cmd *exec.Cmd, moduleID string) {}

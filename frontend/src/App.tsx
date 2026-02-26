@@ -936,7 +936,6 @@ function App() {
                       const gatePayload = module.payload as GateStatsPayload;
                       const total = gatePayload.total_queries ?? 0;
                       const blockedToday = gatePayload.blocked_today ?? 0;
-                      const pct = gatePayload.blocked_percent ?? (total > 0 ? (blockedToday / total) * 100 : 0);
                       const blocklistCount = gatePayload.blocklist_count ?? 0;
                       const score = gatePayload.score ?? null;
                       const trackerQueries = gatePayload.tracker_queries ?? 0;
